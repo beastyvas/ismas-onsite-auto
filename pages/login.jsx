@@ -1,6 +1,6 @@
 // pages/login.jsx
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/utils/supabaseClient";
 
 export default function LoginPage() {
@@ -8,9 +8,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState(null);
   const router = useRouter();
 
-const onSubmit = async (e) => {
+  // Fetch logo from database
+  useEffect(() => {
+    const fetchLogo = async () => {
+      const { data } = await supabase
+        .from("settings")
+        .select("logo_url")
+        .maybeSingle();
+      
+      if (data?.logo_url) {
+        const url = supabase.storage
+          .from('business-assets')
+          .getPublicUrl(data.logo_url).data.publicUrl;
+        setLogoUrl(url);
+      }
+    };
+    fetchLogo();
+  }, []);
+
+  const onSubmit = async (e) => {
     e.preventDefault();
     setErr(null);
     setIsLoading(true);
@@ -28,76 +47,56 @@ const onSubmit = async (e) => {
   };
 
   return (
-    <main className="min-h-screen bg-black flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="mb-8">
+        <div className="text-center mb-8">
+          <div className="mb-6">
             <img
-              src="/images/logo.png"
-              alt="Onsite Auto Repairs Logo"
-              className="w-40 mx-auto drop-shadow-2xl"
+              src={logoUrl || "/images/logo.png"}
+              alt="Logo"
+              className="w-48 mx-auto drop-shadow-2xl"
             />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-3">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
             Dashboard Login
           </h1>
-          <p className="text-gray-500">Access your admin panel</p>
-          <div className="w-16 h-1 bg-white mx-auto mt-4"></div>
+          <p className="text-gray-400">Access your admin panel</p>
         </div>
 
-        {/* Login Form */}
-        <div className="bg-gray-900 border border-gray-800 p-8 shadow-2xl">
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-8 shadow-2xl">
           <form onSubmit={onSubmit} className="space-y-6">
-            {/* Email Input */}
             <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-semibold text-gray-400 uppercase tracking-wider">
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-300">
                 Email Address
               </label>
-              <div className="relative">
-                <input
-                  id="email"
-                  type="email"
-                  className="w-full px-4 py-3 bg-black border border-gray-800 text-white placeholder-gray-600 focus:border-gray-700 transition-colors"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                  </svg>
-                </div>
-              </div>
+              <input
+                id="email"
+                type="email"
+                className="w-full px-4 py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors text-white placeholder-gray-500"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
 
-            {/* Password Input */}
             <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-semibold text-gray-400 uppercase tracking-wider">
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-300">
                 Password
               </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type="password"
-                  className="w-full px-4 py-3 bg-black border border-gray-800 text-white placeholder-gray-600 focus:border-gray-700 transition-colors"
-                  placeholder="Enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-              </div>
+              <input
+                id="password"
+                type="password"
+                className="w-full px-4 py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors text-white placeholder-gray-500"
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
 
-            {/* Error Message */}
             {err && (
-              <div className="bg-red-900/20 border border-red-900/50 p-4 flex items-start space-x-3">
+              <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 flex items-start space-x-3">
                 <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -105,15 +104,14 @@ const onSubmit = async (e) => {
               </div>
             )}
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-white hover:bg-gray-100 text-black font-bold py-4 px-6 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold py-4 px-6 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:shadow-blue-500/50"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center space-x-3">
-                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   <span>Signing In...</span>
                 </div>
               ) : (
@@ -127,7 +125,6 @@ const onSubmit = async (e) => {
             </button>
           </form>
         </div>
-
         {/* Back to Site */}
         <div className="text-center mt-8">
           <a
