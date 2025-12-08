@@ -1,143 +1,445 @@
-// pages/dashboard.jsx
+// pages/dashboard.js
 import { useEffect, useState } from "react";
-import { useRouter } from 'next/router';
+import { useRouter } from "next/router";
 import { supabase } from "@/utils/supabaseClient";
-import dynamic from "next/dynamic";
-import "react-calendar/dist/Calendar.css";
 
-// Load react-calendar only on the client
-const Calendar = dynamic(() => import("react-calendar"), { ssr: false });
+function InputField({ label, sublabel, value, onChange, type = "text" }) {
+  return (
+    <div>
+      <label className="block text-[11px] text-zinc-400 mb-1">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+      />
+      {sublabel && <p className="text-[11px] text-zinc-500 mt-1">{sublabel}</p>}
+    </div>
+  );
+}
+
+function TextareaField({ label, value, onChange, rows = 3 }) {
+  return (
+    <div>
+      <label className="block text-[11px] text-zinc-400 mb-1">{label}</label>
+      <textarea
+        rows={rows}
+        value={value}
+        onChange={onChange}
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-100 resize-none focus:outline-none focus:ring-1 focus:ring-red-500"
+      />
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const router = useRouter();
-  // -------- STATE (all hooks at the top, fixed order) --------
+
+  // ---------- STATE ----------
   const [ready, setReady] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [appointments, setAppointments] = useState([]);
+  const [apptTab, setApptTab] = useState("upcoming");
 
-  const [preview, setPreview] = useState(null);
-  const [caption, setCaption] = useState("");
-  const [gallery, setGallery] = useState([]);
+  // Schedule (per-day hours)
+  const [schedule, setSchedule] = useState({
+    monday: { enabled: false, start: "", end: "" },
+    tuesday: { enabled: false, start: "", end: "" },
+    wednesday: { enabled: false, start: "", end: "" },
+    thursday: { enabled: false, start: "", end: "" },
+    friday: { enabled: false, start: "", end: "" },
+    saturday: { enabled: false, start: "", end: "" },
+    sunday: { enabled: false, start: "", end: "" },
+  });
 
-  const [availability, setAvailability] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [newSlot, setNewSlot] = useState({ start: "", end: "" });
+  const [mechanics, setMechanics] = useState([]);
+  const [newMechanic, setNewMechanic] = useState({
+    name: "",
+    bioShort: "",
+    bioLong: "",
+    photoFile: null,
+    photoPreview: null,
+  });
 
-  const [bookings, setBookings] = useState([]);
+  // Services
+  const [services, setServices] = useState([]);
+ const [newService, setNewService] = useState({
+  name: "",
+  nameEs: "",
+  description: "",
+  price: "",
+  icon: "",
+  duration: 1,  // ← ADD THIS
+  imageFile: null,
+  imagePreview: null,
+});
 
-  const [bio, setBio] = useState("");
-  const [saving, setSaving] = useState(false);
+  // Testimonials / Reviews
+  const [reviews, setReviews] = useState([]);
+  const [newReview, setNewReview] = useState({
+    name: "",
+    service: "",
+    rating: 5,
+    text: "",
+    photoFile: null,
+    photoPreview: null,
+  });
 
-  const [selectedIds, setSelectedIds] = useState([]);
+  // Settings (business info)
+ const [settings, setSettings] = useState({
+  id: null,
+  businessName: "Isma's OnSite Auto Repair",
+  tagline: "Honest mobile mechanic serving Las Vegas.",
+  baseAddress: "Ash Dr, Las Vegas, NV 89121",
+  phone: "(702) 801-7210",
+  smsNumber: "(702) 801-7210",
+  email: "contact@ismaauto.com",
+  hours: "",
+  logoUrl: null, // in settings state
+});
 
-  // -------- EFFECT: wait for session, then load data --------
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // initial loads
-        await Promise.all([
-          fetchGallery(),
-          fetchAvailability(),
-          fetchBookings(),
-          fetchBio(),
-        ]);
-      }
-      setReady(true);
-    })();
-  }, []);
+const [expandedPhoto, setExpandedPhoto] = useState(null);
 
-  // -------- RENDER GUARD --------
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+const [logoFile, setLogoFile] = useState(null); // ← ADD THIS
+const [logoPreview, setLogoPreview] = useState(null); // ← ADD THIS
 
-  // -------- ACTIONS & HELPERS --------
-  async function fetchBio() {
-    const { data, error } = await supabase.from("settings").select("bio").single();
-    if (error) {
-      console.error("Error fetching bio:", error.message);
-    } else {
-      setBio(data?.bio || "");
-    }
-  }
+  const [promo, setPromo] = useState({
+    enabled: false,
+    text: "",
+  });
 
-  const saveBio = async () => {
-    setSaving(true);
-    const { error } = await supabase
-      .from("settings")
-      .update({ bio })
-      .eq("id", "c5d1931e-8603-4f6e-ac4e-e6cf6bd839a9");
-    setSaving(false);
-    if (error) {
-      alert("Failed to save bio.");
-      console.error("Bio update error:", error.message);
-    } else {
-      alert("Bio updated!");
-    }
-  };
+  // Filters
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showOnlyEmergency, setShowOnlyEmergency] = useState(false);
+  const [showOnlyPaid, setShowOnlyPaid] = useState(false);
 
-  async function fetchGallery() {
-    const { data, error } = await supabase
-      .from("gallery")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) console.error("Fetch gallery error:", error.message);
-    else setGallery(data || []);
-  }
-
-  async function fetchAvailability() {
-    const { data, error } = await supabase
-      .from("availability")
-      .select("*")
-      .order("date");
-    if (error) console.error("Fetch availability error:", error.message);
-    else setAvailability(data || []);
-  }
-
-  function convertTo24Hr(timeStr) {
-    if (!timeStr || typeof timeStr !== "string") return "00:00";
-    const match = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)$/i);
-    if (!match) return "00:00";
-    let [, hourStr, minuteStr, modifier] = match;
-    let hour = parseInt(hourStr, 10);
-    let minutes = parseInt(minuteStr || "00", 10);
-    if (modifier.toUpperCase() === "PM" && hour !== 12) hour += 12;
-    if (modifier.toUpperCase() === "AM" && hour === 12) hour = 0;
-    return `${hour.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-  }
-
-  async function fetchBookings() {
-    const { data, error } = await supabase
+  const getStorageUrl = (bucket, path) => {
+  if (!path) return null;
+  return `https://saphvmlpnbtzyhsqpalw.supabase.co/storage/v1/object/public/${bucket}/${path}`;
+};
+  // ---------- FETCH DATA ON LOAD ----------
+ useEffect(() => {
+  const fetchAllData = async () => {
+    // ---------- 1) FETCH BOOKINGS + JOB NOTES/PHOTOS ----------
+    const { data: bookingsData, error: bookingsError } = await supabase
       .from("bookings")
       .select("*")
-      .order("date", { ascending: true });
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
 
-    if (error) {
-      console.error("Error fetching bookings:", error.message);
+    if (bookingsError) {
+      console.error("Bookings fetch error:", bookingsError);
+      return;
+    }
+    let notesByAppt = {};
+    let photosByAppt = {};
+
+    if (bookingsData && bookingsData.length > 0) {
+      const bookingIds = bookingsData.map((b) => b.id);
+
+      const [
+        { data: notesData, error: notesError },
+        { data: photosData, error: photosError },
+      ] = await Promise.all([
+        supabase
+          .from("job_notes")
+          .select("id, booking_id, notes, created_at")
+          .in("booking_id", bookingIds)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("job_photos")
+          .select("id, booking_id, photo_url, created_at")
+          .in("booking_id", bookingIds)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (notesError) {
+        console.error("Job notes fetch error:", notesError);
+      }
+      if (photosError) {
+        console.error("Job photos fetch error:", photosError);
+      }
+
+      notesByAppt = {};
+      (notesData || []).forEach((n) => {
+        if (!notesByAppt[n.booking_id]) notesByAppt[n.booking_id] = [];
+        notesByAppt[n.booking_id].push(n);
+      });
+
+      photosByAppt = {};
+      (photosData || []).forEach((p) => {
+        if (!photosByAppt[p.booking_id])
+          photosByAppt[p.booking_id] = [];
+        photosByAppt[p.booking_id].push(p);
+      });
+    }
+
+    const formattedAppointments =
+      bookingsData?.map((booking) => ({
+        id: booking.id,
+        customerName: booking.name,
+        phone: booking.phone,
+        address: booking.address,
+        vehicle: booking.vehicle, // <- column is "vehicle" now
+        services: Array.isArray(booking.services)
+          ? booking.services
+          : booking.services
+          ? booking.services.split(",")
+          : [],
+        date: booking.date,
+        time: booking.start_time,
+        notes: booking.notes,
+        status: booking.status || "pending",
+        emergency: booking.is_emergency,
+        veteranDiscount: booking.veteran_discount,
+        duration: booking.duration,
+        paid: booking.paid,
+        distanceMiles: booking.distance_miles,
+
+        // Persisted history
+        savedNotes: notesByAppt[booking.id] || [],
+        savedPhotos: photosByAppt[booking.id] || [],
+
+        // Local drafts for current session
+        _localNotes: "",
+        _localPhotos: [],
+      })) || [];
+
+    setAppointments(formattedAppointments);
+
+    // ---------- 2) AUTH USER ----------
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      console.error("Auth getUser error:", userError);
+      return;
+    }
+    if (!user) {
+      router.push("/login");
       return;
     }
 
-    const now = new Date();
-    const upcoming = (data || []).filter((b) => {
-      if (!b.date || !b.start_time) return false;
-      const start = typeof b.start_time === "string" && b.start_time.includes("AM")
-        ? convertTo24Hr(b.start_time)
-        : b.start_time;
-      const ts = new Date(`${b.date}T${start}`);
-      return ts.getTime() > now.getTime() - 5 * 60 * 1000;
+    // ---------- 3) SETTINGS ----------
+    const { data: settingsData, error: settingsError } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("owner_id", user.id)
+      .maybeSingle();
+
+    if (!settingsError && settingsData) {
+      setSettings({
+        id: settingsData.id,
+        businessName:
+          settingsData.business_name || "Isma's OnSite Auto Repair",
+        tagline:
+          settingsData.tagline || "Honest mobile mechanic serving Las Vegas.",
+        baseAddress:
+          settingsData.base_address || "Ash Dr, Las Vegas, NV 89121",
+        phone: settingsData.phone || "(702) 801-7210",
+        smsNumber: settingsData.sms_number || "(702) 801-7210",
+        email: settingsData.email || "contact@ismaauto.com",
+        hours: settingsData.hours || "",
+          logoUrl: settingsData.logo_url || null,
+      });
+
+      setPromo({
+        enabled: settingsData.promo_enabled ?? false,
+        text: settingsData.promo_text ?? "",
+      });
+    }
+
+    // ---------- 4) SERVICES ----------
+    const { data: servicesData, error: servicesError } = await supabase
+      .from("services")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!servicesError && servicesData) {
+      const formattedServices = servicesData.map((s) => ({
+        id: s.id,
+        title: s.title,
+        title_es: s.title_es,
+        description: s.description,
+        price: s.price,
+        icon: s.icon,
+        duration: s.duration,
+        image_url: s.image_url,
+      }));
+      setServices(formattedServices);
+    }
+
+    // ---------- 5) TESTIMONIALS ----------
+    const { data: testimonialsData, error: testimonialsError } = await supabase
+      .from("testimonials")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!testimonialsError && testimonialsData) {
+      setReviews(testimonialsData);
+    }
+
+    // ---------- 6) MECHANICS ----------
+    const { data: mechanicsData, error: mechanicsError } = await supabase
+      .from("mechanics")
+      .select("*")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: true });
+
+    if (!mechanicsError && mechanicsData) {
+      setMechanics(mechanicsData);
+    }
+
+    // ---------- 7) SCHEDULE SETTINGS ----------
+    const { data: scheduleData, error: scheduleError } = await supabase
+      .from("schedule_settings")
+      .select("*")
+      .eq("owner_id", user.id)
+      .order("day_of_week");
+
+    if (!scheduleError && scheduleData) {
+      const scheduleMap = {
+        monday: { enabled: false, start: "09:00", end: "17:00" },
+        tuesday: { enabled: false, start: "09:00", end: "17:00" },
+        wednesday: { enabled: false, start: "09:00", end: "17:00" },
+        thursday: { enabled: false, start: "09:00", end: "17:00" },
+        friday: { enabled: false, start: "09:00", end: "17:00" },
+        saturday: { enabled: false, start: "09:00", end: "17:00" },
+        sunday: { enabled: false, start: "09:00", end: "17:00" },
+      };
+
+      const dayNames = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+      ];
+
+      scheduleData.forEach((day) => {
+        const dayName = dayNames[day.day_of_week];
+        if (dayName) {
+          scheduleMap[dayName] = {
+            enabled: day.is_open,
+            start: day.start_time || "09:00",
+            end: day.end_time || "17:00",
+          };
+        }
+      });
+
+      setSchedule(scheduleMap);
+    }
+
+    setReady(true);
+  };
+
+  fetchAllData();
+
+  // ---------- REALTIME SUBSCRIPTION FOR BOOKINGS ----------
+  const subscription = supabase
+    .channel("bookings-changes")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "bookings" },
+      () => {
+        fetchAllData();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, [router]);
+
+function getTodayLocal() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+  // ---------- HELPER FUNCTIONS ----------
+async function autoCalculateMileage(appointment) {
+  try {
+    const res = await fetch("/api/calc-mileage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fromAddress: settings.baseAddress,
+        toAddress: appointment.address,
+      }),
     });
 
-    setBookings(upcoming);
+    const data = await res.json();
+
+    if (data.success) {
+      // Save to database
+      await supabase
+        .from("bookings")
+        .update({ distance_miles: data.miles })
+        .eq("id", appointment.id);
+
+      // Update locally
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === appointment.id ? { ...a, distanceMiles: data.miles } : a
+        )
+      );
+    }
+  } catch (err) {
+    console.error("Mileage autocalc error:", err);
   }
+}
+
+  const handleOnTheWay = async (appt) => {
+  try {
+    // Update status in database FIRST
+    const { error: updateError } = await supabase
+      .from("bookings")
+      .update({ status: "on_way" })
+      .eq("id", appt.id);
+
+    if (updateError) {
+      console.error("Update error:", updateError);
+      alert("❌ Failed to update status");
+      return;
+    }
+
+    // Update local state
+    updateAppointmentStatus(appt.id, "on_way");
+
+    // Send SMS
+    const res = await fetch("/api/on-the-way", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customerPhone: appt.phone,
+        name: appt.customerName,
+        date: appt.date,
+        start_time: appt.time,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!data.success) {
+      alert("❌ Failed to send On The Way text.");
+      return;
+    }
+
+    alert("🚗 Customer notified you're on the way!");
+
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong");
+  }
+};
 
   function formatTime(time24) {
     if (!time24) return "";
@@ -148,993 +450,2208 @@ export default function Dashboard() {
     return `${hour12}:${minuteStr}${suffix}`;
   }
 
-  function formatTimeRange(startTime, endTime) {
-    return `${formatTime(startTime)} - ${formatTime(endTime)}`;
-  }
-
-  function handleFileChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => setPreview(reader.result);
-    reader.readAsDataURL(file);
-  }
-
-  function dataURLtoFile(dataUrl, filename) {
-    const arr = dataUrl.split(",");
-    const mime = arr[0].match(/:(.*?);/)[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) u8arr[n] = bstr.charCodeAt(n);
-    return new File([u8arr], filename, { type: mime });
-  }
-
-  async function handleUpload() {
-    if (!preview || !caption) {
-      alert("Please choose a photo and enter a name for the set!");
-      return;
-    }
-    const file = dataURLtoFile(preview, `${caption}.png`);
-    const filePath = `nails/${caption}-${Date.now()}.png`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("gallery")
-      .upload(filePath, file);
-    if (uploadError) {
-      console.error("Upload error:", uploadError.message);
-      alert("Upload failed 😢");
-      return;
-    }
-
-    const { error: insertError } = await supabase
-      .from("gallery")
-      .insert({ image_url: filePath, caption });
-    if (insertError) {
-      console.error("DB insert error:", insertError.message);
-      alert("Upload succeeded, but saving the caption failed 😢");
-      return;
-    }
-
-    alert("Upload successful! 🥳");
-    setPreview(null);
-    setCaption("");
-    fetchGallery();
-  }
-
-  const handleAddSlot = async (e) => {
-    e.preventDefault();
-    if (!selectedDate || !newSlot.start || !newSlot.end) {
-      alert("Please select a date and time.");
-      return;
-    }
-    const isoDate = new Date(selectedDate).toISOString().split("T")[0];
-    const { error } = await supabase.from("availability").insert({
-      date: isoDate,
-      start_time: newSlot.start,
-      end_time: newSlot.end,
+  function formatDate(dateStr) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
     });
-    if (error) {
-      console.error("Add slot error:", error.message);
-      alert("Failed to add slot.");
-    } else {
-      setNewSlot({ start: "", end: "" });
-      fetchAvailability();
-    }
-  };
-
-  async function handleDeleteImage(item) {
-    const confirm = window.confirm("Are you sure you want to delete this set?");
-    if (!confirm) return;
-
-    const { error: deleteError } = await supabase
-      .storage
-      .from("gallery")
-      .remove([item.image_url]);
-
-    if (deleteError) {
-      alert("Delete failed 😢");
-      console.error("Delete error:", deleteError.message);
-      return;
-    }
-
-    const { error: dbError } = await supabase
-      .from("gallery")
-      .delete()
-      .eq("id", item.id);
-
-    if (dbError) {
-      alert("Deleted from storage but not DB 😢");
-      console.error("DB delete error:", dbError.message);
-      return;
-    }
-
-    setGallery((prev) => prev.filter((g) => g.id !== item.id));
-    alert("Deleted successfully 🗑️");
   }
 
-  function toggleSelected(id) {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
+ function updateLocalNotes(id, text) {
+  setAppointments((prev) =>
+    prev.map((a) =>
+      a.id === id ? { ...a, _localNotes: text } : a
+    )
+  );
+}
 
-  async function handleDeleteSelected() {
-    const ok = confirm(`Delete ${selectedIds.length} selected availability slot(s)?`);
-    if (!ok) return;
-    const { error } = await supabase.from("availability").delete().in("id", selectedIds);
-    if (error) {
-      console.error("Bulk delete error:", error.message);
-      alert("Failed to delete selected slots.");
-    } else {
-      setSelectedIds([]);
-      fetchAvailability();
-    }
-  }
+function handleLocalPhotos(id, files) {
+  const readers = Array.from(files).map((file) => {
+    return new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.readAsDataURL(file);
+    });
+  });
 
-  const generateMonthAvailability = async () => {
-    const inserts = [];
-    const year = selectedYear;
-    const month = selectedMonth;
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      const dow = date.getDay();
-      if (dow === 0 || dow === 3) continue; // skip Sundays and Wednesdays
-      const iso = date.toISOString().split("T")[0];
-      if (dow === 1) {
-        // Monday: 2:30PM-8:30PM
-        inserts.push({ date: iso, start_time: "14:30", end_time: "20:30" });
-      } else {
-        // Tuesday, Thursday, Friday, Saturday: 8AM-4PM
-        inserts.push({ date: iso, start_time: "08:00", end_time: "16:00" });
+  Promise.all(readers).then((images) => {
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, _localPhotos: [...(a._localPhotos || []), ...images] }
+          : a
+      )
+    );
+  });
+}
+
+async function saveLocalJobNotes(id) {
+  const appointment = appointments.find((a) => a.id === id);
+  if (!appointment) return;
+
+  try {
+    const newSavedNotes = [];
+    const newSavedPhotos = [];
+
+    // Upload photos if any
+    const photoFileNames = [];
+    if (appointment._localPhotos && appointment._localPhotos.length > 0) {
+      for (const photo of appointment._localPhotos) {
+        const response = await fetch(photo);
+        const blob = await response.blob();
+        const fileName = `${Date.now()}-${Math.random()}.jpg`;
+
+       const { error: uploadError } = await supabase.storage
+  .from("job-photos")
+  .upload(fileName, blob);
+
+
+        if (!uploadError) {
+          photoFileNames.push(fileName);
+        } else {
+          console.error("Photo upload error:", uploadError);
+        }
       }
     }
-    const { error } = await supabase.from("availability").insert(inserts);
-    if (error) {
-      console.error("Insert error:", error.message);
-      alert("❌ Failed to insert slots.");
-    } else {
-      alert("✅ Availability generated!");
-      fetchAvailability();
-    }
-  };
 
-  const handleDeleteBooking = async (booking) => {
-    const confirmDelete = confirm("Are you sure you want to delete this appointment?");
-    if (!confirmDelete) return;
+    // Save notes to job_notes table (optional)
+    if (appointment._localNotes && appointment._localNotes.trim() !== "") {
+      const { data: noteRows, error: noteError } = await supabase
+        .from("job_notes")
+        .insert({
+          booking_id: id,
+          notes: appointment._localNotes.trim(),
+        })
+        .select("*");
+
+      if (noteError) throw noteError;
+      if (noteRows && noteRows.length > 0) {
+        newSavedNotes.push(noteRows[0]);
+      }
+    }
+
+    // Save photos to job_photos table
+    if (photoFileNames.length > 0) {
+      const { data: photoRows, error: photoError } = await supabase
+        .from("job_photos")
+        .insert(
+          photoFileNames.map((fileName) => ({
+            booking_id: id,
+            photo_url: fileName,
+          }))
+        )
+        .select("*");
+
+      if (photoError) throw photoError;
+      if (photoRows) newSavedPhotos.push(...photoRows);
+    }
+
+    // Move drafts into saved arrays and clear drafts
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              savedNotes: [...(a.savedNotes || []), ...newSavedNotes],
+              savedPhotos: [...(a.savedPhotos || []), ...newSavedPhotos],
+              _localNotes: "",
+              _localPhotos: [],
+            }
+          : a
+      )
+    );
+
+    alert("✅ Notes and photos saved!");
+  } catch (err) {
+    console.error(err);
+    alert("Failed to save notes");
+  }
+}
+
+
+  function getStatusBadgeClasses(status) {
+    switch (status) {
+      case "pending":
+        return "bg-amber-500/20 text-amber-300 border border-amber-500/40";
+      case "confirmed":
+        return "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+      case "completed":
+        return "bg-sky-500/20 text-sky-300 border border-sky-500/40";
+      case "cancelled":
+        return "bg-red-500/20 text-red-300 border border-red-500/40";
+      default:
+        return "bg-zinc-700/40 text-zinc-200 border border-zinc-600";
+    }
+  }
+
+  function getEmergencyBadgeClasses(emergency) {
+    if (!emergency) return "";
+    return "bg-red-500 text-white text-[11px] px-2 py-0.5 rounded-full uppercase tracking-wide";
+  }
+
+  function averageRating() {
+    if (!reviews.length) return null;
+    const sum = reviews.reduce((acc, r) => acc + Number(r.rating || 0), 0);
+    return (sum / reviews.length).toFixed(1);
+  }
+
+  function appointmentsThisWeek() {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dayOfWeek);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    return appointments.filter((a) => {
+      const d = new Date(a.date + "T00:00:00");
+      return d >= weekStart && d <= weekEnd;
+    }).length;
+  }
+
+  function todaysAppointments() {
+    const isoToday = getTodayLocal();
+    return appointments.filter((a) => a.date === isoToday).length;
+  }
+
+  function emergenciesToday() {
+    const isoToday = getTodayLocal();
+    return appointments.filter((a) => a.date === isoToday && a.emergency)
+      .length;
+  }
+
+  // Filter appointments
+  const filteredAppointments = appointments.filter((a) => {
+    if (statusFilter !== "all" && a.status !== statusFilter) return false;
+    if (showOnlyEmergency && !a.emergency) return false;
+    if (showOnlyPaid && !a.paid) return false;
+    return true;
+  });
+
+ const today = getTodayLocal(); // Use the helper function we created
+const upcoming = filteredAppointments.filter((a) => a.date >= today);
+const past = filteredAppointments.filter(
+  (a) => a.date < today || a.status === "completed"
+);
+  const listToRender = apptTab === "upcoming" ? upcoming : past;
+
+  // ---------- ACTION HANDLERS ----------
+  async function handleSignOut() {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    } finally {
+      router.push("/login");
+    }
+  }
+
+  async function updateAppointmentStatus(id, status) {
+    // Update locally since status isn't in DB yet
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status } : a))
+    );
+  }
+
+  async function updatePaidStatus(id, paid) {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ paid })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Failed to update paid status:", error);
+      alert("Failed to update payment status");
+      return;
+    }
+
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, paid } : a))
+    );
+  }
+
+  async function confirmAndNotify(id) {
+  const appointment = appointments.find((a) => a.id === id);
+  if (!appointment) {
+    return alert("Appointment not found.");
+  }
+
+  try {
+    // 🚀 AUTO-CALCULATE MILEAGE FIRST
+    if (!appointment.distanceMiles && appointment.address) {
+      await autoCalculateMileage(appointment);
+    }
+
+    // Send SMS - NOW WITH bookingId!
+    const res = await fetch("/api/confirm-appointment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: appointment.customerName,
+        phone: appointment.phone,
+        date: appointment.date,
+        time: appointment.time,
+        address: appointment.address,
+        emergency: appointment.emergency,
+        bookingId: id,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!data.success) {
+      alert("SMS failed: " + data.error);
+      return;
+    }
+
+    alert("✅ Customer notified via SMS!");
+
+  } catch (err) {
+    console.error(err);
+    alert("Failed to confirm appointment");
+  }
+}
+
+ async function completeAppointment(id) {
+  // Update in database first
+  const { error } = await supabase
+    .from("bookings")
+    .update({ status: "completed" })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Failed to complete:", error);
+    alert("Failed to complete appointment");
+    return;
+  }
+
+  // Then update local state
+  updateAppointmentStatus(id, "completed");
+}
+
+ async function cancelAppointment(id) {
+  const ok = window.confirm("Cancel this appointment?");
+  if (!ok) return;
+  
+  // Update in database first
+  const { error } = await supabase
+    .from("bookings")
+    .update({ status: "cancelled" })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Failed to cancel:", error);
+    alert("Failed to cancel appointment");
+    return;
+  }
+
+  // Then update local state
+  updateAppointmentStatus(id, "cancelled");
+}
+
+  async function deleteAppointment(id) {
+    const ok = window.confirm("Delete this appointment?");
+    if (!ok) return;
     
-    const { error } = await supabase.from("bookings").delete().eq("id", booking.id);
+    const { error } = await supabase
+      .from("bookings")
+      .delete()
+      .eq("id", id);
+
     if (error) {
+      console.error("Failed to delete:", error);
       alert("Failed to delete appointment");
-      console.error("Delete error:", error.message);
-    } else {
-      alert("Appointment deleted successfully");
-      fetchBookings();
+      return;
     }
-  };
 
-  const tabs = [
-    { id: "overview", label: "Overview", icon: "📊" },
-    { id: "appointments", label: "Appointments", icon: "📅" },
-    { id: "gallery", label: "Gallery", icon: "🖼️" },
-    { id: "availability", label: "Availability", icon: "⏰" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
-  ];
+    setAppointments((prev) => prev.filter((a) => a.id !== id));
+  }
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50">
-      {/* Header */}
-      <div className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <span className="text-2xl">💅</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent">
-                  Mya's Dashboard
-                </h1>
-                <p className="text-sm text-gray-600">Manage your nail salon</p>
-              </div>
-            </div>
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                window.location.href = '/login';
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
+  function handleScheduleChange(dayKey, field, value) {
+    setSchedule((prev) => ({
+      ...prev,
+      [dayKey]: {
+        ...prev[dayKey],
+        [field]: value,
+      },
+    }));
+  }
+
+  async function handleSaveSchedule() {
+    try {
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const updates = [];
+
+      // Convert UI format to database format
+      Object.entries(schedule).forEach(([dayKey, dayData]) => {
+        const dayOfWeek = dayNames.indexOf(dayKey);
+        if (dayOfWeek !== -1) {
+          updates.push({
+            day_of_week: dayOfWeek,
+            is_open: dayData.enabled,
+            start_time: dayData.start,
+            end_time: dayData.end,
+          });
+        }
+      });
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("You must be logged in to save schedule");
+        return;
+      }
+
+      // Upsert each day's schedule
+      for (const update of updates) {
+        const { error } = await supabase
+          .from("schedule_settings")
+          .upsert({
+            owner_id: user.id,
+            ...update,
+          }, {
+            onConflict: "owner_id,day_of_week"
+          });
+
+        if (error) throw error;
+      }
+
+      alert("✅ Schedule saved successfully!");
+    } catch (err) {
+      console.error("Error saving schedule:", err);
+      alert("❌ Failed to save schedule: " + err.message);
+    }
+  }
+
+  async function handleGenerateAvailability() {
+    try {
+      const confirmed = window.confirm(
+        "This will generate availability slots for the next 30 days based on your weekly schedule. Continue?"
+      );
+      
+      if (!confirmed) return;
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("You must be logged in");
+        return;
+      }
+
+      // Fetch schedule settings
+      const { data: scheduleData, error: scheduleError } = await supabase
+        .from("schedule_settings")
+        .select("*")
+        .eq("owner_id", user.id);
+
+      if (scheduleError) throw scheduleError;
+
+      if (!scheduleData || scheduleData.length === 0) {
+        alert("⚠️ Please save your schedule first before generating availability!");
+        return;
+      }
+
+      // Create a map of day_of_week -> schedule
+      const scheduleMap = {};
+      scheduleData.forEach((day) => {
+        scheduleMap[day.day_of_week] = day;
+      });
+
+      // Generate slots for next 30 days
+      const slots = [];
+      const today = new Date();
+      
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        
+        const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        const daySchedule = scheduleMap[dayOfWeek];
+        
+        // Skip if day is not open
+        if (!daySchedule || !daySchedule.is_open) continue;
+        
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // Check if this date already has availability
+        const { data: existing } = await supabase
+          .from("availability")
+          .select("id")
+          .eq("owner_id", user.id)
+          .eq("date", dateStr);
+        
+        // Skip if already has slots for this date
+        if (existing && existing.length > 0) continue;
+        
+        // Add the full day slot (you can customize this to create multiple slots per day)
+        slots.push({
+          owner_id: user.id,
+          date: dateStr,
+          start_time: daySchedule.start_time,
+          end_time: daySchedule.end_time,
+        });
+      }
+
+      if (slots.length === 0) {
+        alert("ℹ️ No new availability slots to generate. All dates already have slots!");
+        return;
+      }
+
+      // Insert all slots
+      const { error: insertError } = await supabase
+        .from("availability")
+        .insert(slots);
+
+      if (insertError) throw insertError;
+
+      alert(`✅ Generated ${slots.length} availability slots for the next 30 days!`);
+    } catch (err) {
+      console.error("Error generating availability:", err);
+      alert("❌ Failed to generate availability: " + err.message);
+    }
+  }
+
+  // ========== SERVICES ==========
+  async function handleAddService(e) {
+    e.preventDefault();
+    if (!newService.name.trim()) {
+      alert("Please enter a service name.");
+      return;
+    }
+
+    let imagePath = null;
+
+    // Upload image if provided
+    if (newService.imageFile) {
+      const fileExt = newService.imageFile.name.split(".").pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("services")
+        .upload(fileName, newService.imageFile);
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        alert("Failed to upload image");
+        return;
+      } else {
+        imagePath = fileName;
+      }
+    }
+
+   const { data, error } = await supabase
+  .from("services")
+  .insert({
+    name: newService.name,
+    title: newService.name,
+    title_es: newService.nameEs,
+    description: newService.description,
+    price: newService.price,
+    icon: newService.icon || "🔧",
+    duration: newService.duration || 1,  // ← ADD THIS
+    image_url: imagePath,
+  })
+  .select();
+
+    if (error) {
+      console.error(error);
+      alert("Failed to add service");
+      return;
+    }
+const formattedService = {
+  id: data[0].id,
+  name: data[0].title,
+  nameEs: data[0].title_es,
+  description: data[0].description,
+  price: data[0].price,
+  icon: data[0].icon,
+  duration: data[0].duration,  // ← ADD THIS
+  imageUrl: data[0].image_url,
+};
+
+    setServices((prev) => [formattedService, ...prev]);
+    setNewService({ 
+  name: "", 
+  nameEs: "", 
+  description: "", 
+  price: "",
+  icon: "",
+  duration: 1,  // ← ADD THIS
+  imageFile: null,
+  imagePreview: null,
+});
+  }
+
+  async function handleDeleteService(id) {
+    const ok = window.confirm("Remove this service?");
+    if (!ok) return;
+
+    const { error } = await supabase.from("services").delete().eq("id", id);
+
+    if (error) {
+      console.error(error);
+      alert("Failed to delete service");
+      return;
+    }
+
+    setServices((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  // ========== TESTIMONIALS ==========
+  async function handleAddReview(e) {
+    e.preventDefault();
+
+    let photoPath = null;
+
+    if (newReview.photoFile) {
+      const file = newReview.photoFile;
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("testimonials")
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+      } else {
+        photoPath = fileName;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("testimonials")
+      .insert({
+        name: newReview.name,
+        service: newReview.service || null,
+        rating: newReview.rating,
+        text: newReview.text,
+        image_url: photoPath,
+      })
+      .select();
+
+    if (error) {
+      console.error(error);
+      alert("Failed to add testimonial");
+      return;
+    }
+
+    setReviews((prev) => [data[0], ...prev]);
+
+    setNewReview({
+      name: "",
+      service: "",
+      rating: 5,
+      text: "",
+      photoFile: null,
+      photoPreview: null,
+    });
+  }
+
+  async function handleDeleteReview(id) {
+    const ok = window.confirm("Delete this testimonial?");
+    if (!ok) return;
+
+    const { error } = await supabase.from("testimonials").delete().eq("id", id);
+
+    if (error) {
+      console.error(error);
+      alert("Failed to delete testimonial");
+      return;
+    }
+
+    setReviews((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  // ========== MECHANICS ==========
+ async function handleAddMechanic(e) {
+  e.preventDefault();
+
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) {
+      alert("You must be logged in");
+      return;
+    }
+
+    let photoPath = null;
+
+    if (newMechanic.photoFile) {
+      const ext = newMechanic.photoFile.name.split(".").pop();
+      const fileName = `${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("mechanics")
+        .upload(fileName, newMechanic.photoFile);
+
+      if (uploadError) {
+        console.error(uploadError);
+        alert("Failed to upload photo");
+        return;
+      }
+
+      photoPath = fileName;
+    }
+
+    const { data, error } = await supabase
+      .from("mechanics")
+      .insert({
+        owner_id: user.id,
+        name: newMechanic.name,
+        bio_short: newMechanic.bioShort,
+        bio_long: newMechanic.bioLong,
+        photo_url: photoPath,
+      })
+      .select("*");
+
+    if (error) throw error;
+
+    setMechanics((prev) => [...prev, data[0]]);
+
+    setNewMechanic({
+      name: "",
+      bioShort: "",
+      bioLong: "",
+      photoFile: null,
+      photoPreview: null,
+    });
+  } catch (err) {
+    console.error("Add mechanic error:", err);
+    alert("Failed to add mechanic: " + err.message);
+  }
+}
+
+
+  async function handleDeleteMechanic(id) {
+    const ok = window.confirm("Delete this mechanic?");
+    if (!ok) return;
+
+    await supabase.from("mechanics").delete().eq("id", id);
+
+    setMechanics((prev) => prev.filter((m) => m.id !== id));
+  }
+
+async function handleSaveSettings(e) {
+  e.preventDefault();
+
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) {
+      alert("You must be logged in to save settings");
+      return;
+    }
+
+    let logoPath = settings.logoUrl; // Keep existing logo by default
+
+    // Upload new logo if provided
+    if (logoFile) {
+      const fileExt = logoFile.name.split(".").pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("business-assets")
+        .upload(fileName, logoFile);
+
+      if (uploadError) {
+        console.error("Logo upload error:", uploadError);
+        alert("Failed to upload logo");
+        return;
+      }
+
+      logoPath = fileName;
+    }
+
+    const payload = {
+      owner_id: user.id,
+      business_name: settings.businessName,
+      phone: settings.phone,
+      email: settings.email,
+      hours: settings.hours,
+      base_address: settings.baseAddress,
+      sms_number: settings.smsNumber,
+      tagline: settings.tagline,
+      promo_text: promo.text,
+      promo_enabled: promo.enabled,
+      logo_url: logoPath, // ← ADD THIS LINE
+    };
+
+    const { data, error } = await supabase
+      .from("settings")
+      .upsert(payload, { onConflict: "owner_id" })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    setSettings((prev) => ({
+      ...prev,
+      id: data.id,
+      logoUrl: data.logo_url, // ← ADD THIS LINE
+    }));
+
+    // Clear logo file state after successful save
+    setLogoFile(null); // ← ADD THIS LINE
+    setLogoPreview(null); // ← ADD THIS LINE
+
+    alert("✅ Settings saved successfully!");
+  } catch (err) {
+    console.error(err);
+    alert("Failed to save settings: " + err.message);
+  }
+}
+
+
+  // ---------- RENDER GUARD ----------
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-zinc-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-zinc-400 text-sm">Loading dashboard...</p>
         </div>
       </div>
+    );
+  }
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Tab Navigation */}
-        <div className="mb-8">
-          <div className="flex space-x-1 bg-white/50 backdrop-blur-sm rounded-2xl p-1 shadow-lg border border-white/20 overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 flex items-center justify-center space-x-2 px-3 sm:px-4 py-3 rounded-xl font-medium transition-all duration-200 min-w-0 ${
-                  activeTab === tab.id
-                    ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
-                }`}
-              >
-                <span>{tab.icon}</span>
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
+  // ---------- UI CONFIG ----------
+  const tabs = [
+    { id: "overview", label: "Dashboard", icon: "🏠" },
+    { id: "appointments", label: "Appointments", icon: "📅" },
+    { id: "schedule", label: "Schedule", icon: "⏰" },
+    { id: "services", label: "Services", icon: "🔧" },
+    { id: "reviews", label: "Reviews", icon: "⭐" },
+    { id: "settings", label: "Settings", icon: "⚙️" },
+    { id: "mechanics", label: "Mechanics", icon: "🧰" },
+    { id: "promos", label: "Promotions", icon: "🏷️" },
+  ];
+
+  const dayLabels = [
+    { key: "monday", label: "Monday" },
+    { key: "tuesday", label: "Tuesday" },
+    { key: "wednesday", label: "Wednesday" },
+    { key: "thursday", label: "Thursday" },
+    { key: "friday", label: "Friday" },
+    { key: "saturday", label: "Saturday" },
+    { key: "sunday", label: "Sunday" },
+  ];
+
+  // ---------- RENDER ----------
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-zinc-950 text-zinc-100">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-black/70 backdrop-blur border-b border-zinc-800">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-red-600 to-red-500 flex items-center justify-center shadow-lg shadow-red-600/40">
+              <span className="text-2xl">🔧</span>
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-semibold text-zinc-50">
+                Isma&apos;s Dashboard
+              </h1>
+              <p className="text-xs sm:text-sm text-zinc-400">
+                OnSite Auto Repair
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleSignOut}
+            className="text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition"
+          >
+            Sign Out
+          </button>
         </div>
 
-        {/* Tab Content */}
-        {activeTab === "overview" && (
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Today's Appointments</p>
-                    <p className="text-3xl font-bold text-pink-600">
-                      {bookings.filter(b => b.date === new Date().toISOString().split('T')[0]).length}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center">
-                    <span className="text-2xl">📅</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">This Week</p>
-                    <p className="text-3xl font-bold text-rose-600">
-                      {(() => {
-                        const now = new Date();
-                        const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-                        const weekEnd = new Date(now.setDate(now.getDate() - now.getDay() + 6));
-                        return bookings.filter(b => {
-                          const bookingDate = new Date(b.date);
-                          return bookingDate >= weekStart && bookingDate <= weekEnd;
-                        }).length;
-                      })()}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center">
-                    <span className="text-2xl">📊</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Gallery Items</p>
-                    <p className="text-3xl font-bold text-purple-600">{gallery.length}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                    <span className="text-2xl">🖼️</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Available Slots</p>
-                    <p className="text-3xl font-bold text-green-600">{availability.length}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <span className="text-2xl">⏰</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Today's Schedule */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Today's Schedule</h2>
-              <div className="space-y-4">
-                {(() => {
-                  const today = new Date().toISOString().split('T')[0];
-                  const todaysBookings = bookings
-                    .filter(b => b.date === today)
-                    .sort((a, b) => a.start_time.localeCompare(b.start_time));
-                  
-                  if (todaysBookings.length === 0) {
-                    return (
-                      <div className="text-center py-8">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <span className="text-2xl">☀️</span>
-                        </div>
-                        <p className="text-gray-500">No appointments scheduled for today</p>
-                      </div>
-                    );
-                  }
-                  
-                  return todaysBookings.map((booking) => (
-                    <div key={booking.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-100">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-pink-500 text-white rounded-full flex items-center justify-center font-semibold">
-                          {booking.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-800">{booking.name}</p>
-                          <p className="text-sm text-gray-600">{booking.service}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium text-gray-800">{formatTime(booking.start_time)}</p>
-                        <p className="text-sm text-gray-600">{booking.duration}h appointment</p>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Top nav tabs */}
+        <div className="border-t border-zinc-800 bg-black/80">
+          <div className="max-w-6xl mx-auto px-2 sm:px-4 py-2 overflow-x-auto scrollbar-none">
+            <div className="flex space-x-2">
+              {tabs.map((tab) => (
                 <button
-                  onClick={() => setActiveTab("appointments")}
-                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white p-4 rounded-xl hover:from-pink-600 hover:to-rose-600 transition-all duration-200"
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center flex-shrink-0 space-x-2 px-3 py-2 rounded-xl text-xs sm:text-sm transition-all ${
+                    activeTab === tab.id
+                      ? "bg-red-600 text-white shadow-lg shadow-red-600/40"
+                      : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800"
+                  }`}
                 >
-                  <span>📅</span>
-                  <span className="font-medium">View Appointments</span>
+                  <span>{tab.icon}</span>
+                  <span className="whitespace-nowrap">{tab.label}</span>
                 </button>
-                <button
-                  onClick={() => setActiveTab("gallery")}
-                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-200"
-                >
-                  <span>🖼️</span>
-                  <span className="font-medium">Manage Gallery</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("availability")}
-                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-green-500 to-teal-500 text-white p-4 rounded-xl hover:from-green-600 hover:to-teal-600 transition-all duration-200"
-                >
-                  <span>⏰</span>
-                  <span className="font-medium">Set Availability</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-gray-500 to-gray-600 text-white p-4 rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-200"
-                >
-                  <span>⚙️</span>
-                  <span className="font-medium">Edit Bio</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Next Few Days Preview */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Upcoming This Week</h2>
-              <div className="space-y-3">
-                {(() => {
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  const nextWeek = new Date();
-                  nextWeek.setDate(nextWeek.getDate() + 7);
-                  
-                  const upcomingBookings = bookings
-                    .filter(b => {
-                      const bookingDate = new Date(b.date + 'T00:00:00');
-                      return bookingDate >= tomorrow && bookingDate < nextWeek;
-                    })
-                    .slice(0, 5);
-                  
-                  if (upcomingBookings.length === 0) {
-                    return (
-                      <p className="text-gray-500 text-center py-4">No upcoming appointments this week</p>
-                    );
-                  }
-                  
-                  return upcomingBookings.map((booking) => (
-                    <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-semibold text-gray-800">{booking.name}</p>
-                        <p className="text-sm text-gray-600">{booking.service}</p>
-                      </div>
-                      <div className="text-right text-sm">
-                        <p className="font-medium text-gray-800">{new Date(booking.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
-                        <p className="text-gray-600">{formatTime(booking.start_time)}</p>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
+              ))}
             </div>
           </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        {/* OVERVIEW TAB */}
+        {activeTab === "overview" && (
+          <section className="space-y-6">
+            {/* Stat cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 shadow-lg shadow-black/40">
+                <p className="text-xs text-zinc-400 mb-1">Today&apos;s Jobs</p>
+                <p className="text-3xl font-semibold text-zinc-50">
+                  {todaysAppointments()}
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-2">
+                  Jobs scheduled for today.
+                </p>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 shadow-lg shadow-black/40">
+                <p className="text-xs text-zinc-400 mb-1">This Week</p>
+                <p className="text-3xl font-semibold text-zinc-50">
+                  {appointmentsThisWeek()}
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-2">
+                  Total appointments this week.
+                </p>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 shadow-lg shadow-black/40">
+                <p className="text-xs text-zinc-400 mb-1">Emergency Calls</p>
+                <p className="text-3xl font-semibold text-red-400">
+                  {emergenciesToday()}
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-2">
+                  Emergency jobs scheduled for today.
+                </p>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 shadow-lg shadow-black/40">
+                <p className="text-xs text-zinc-400 mb-1">Rating</p>
+                <p className="text-3xl font-semibold text-amber-300">
+                  {averageRating() || "-"}
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-2">
+                  Average from {reviews.length || 0} reviews.
+                </p>
+              </div>
+            </div>
+
+            {/* Today schedule + quick actions */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Today's schedule */}
+              <div className="md:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg shadow-black/40">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-zinc-50">
+                    Today&apos;s Schedule
+                  </h2>
+                  <span className="text-xs text-zinc-500">
+                    {formatDate(getTodayLocal())}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {appointments
+                    .filter(
+                      (a) => a.date === getTodayLocal()
+                    )
+                    .sort((a, b) => (a.time || "").localeCompare(b.time || ""))
+                    .map((a) => (
+                      <div
+                        key={a.id}
+                        className="flex items-start justify-between bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-3"
+                      >
+                        <div className="flex-1 mr-3">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <p className="font-medium text-sm text-zinc-50">
+                              {a.customerName}
+                            </p>
+                            {a.emergency && (
+                              <span className={getEmergencyBadgeClasses(true)}>
+                                EMERGENCY
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-400 mb-1">
+                            {a.vehicle}
+                          </p>
+                          <p className="text-[11px] text-zinc-500">
+                            {a.services.join(" • ")}
+                          </p>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <p className="text-sm font-semibold text-zinc-50">
+                            {formatTime(a.time || "09:00")}
+                          </p>
+                          <p className="text-[11px] text-zinc-500">
+                            {a.distanceMiles
+                              ? `${a.distanceMiles.toFixed(1)} mi`
+                              : ""}
+                          </p>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium mt-1 ${getStatusBadgeClasses(
+                              a.status
+                            )}`}
+                          >
+                            {a.status.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+
+                 {appointments.filter((a) => a.date === getTodayLocal()).length === 0 && (
+  <div className="text-center py-6 text-sm text-zinc-500">
+    No jobs scheduled for today.
+  </div>
+)}
+</div>
+</div>
+              {/* Quick actions */}
+              <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg shadow-black/40 space-y-4">
+                <h2 className="text-lg font-semibold text-zinc-50 mb-2">
+                  Quick Actions
+                </h2>
+                <button
+                  onClick={() => setActiveTab("appointments")}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-red-600 text-sm font-medium text-white hover:bg-red-500 transition shadow-lg shadow-red-600/40"
+                >
+                  <span>View All Appointments</span>
+                  <span className="text-xl">📅</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("schedule")}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition border border-zinc-700"
+                >
+                  <span>Edit Work Hours</span>
+                  <span className="text-xl">⏰</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("services")}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-800 text-sm font-medium text-zinc-100 hover:bg-zinc-700 transition border border-zinc-700"
+                >
+                  <span>Update Services</span>
+                  <span className="text-xl">🔧</span>
+                </button>
+              </div>
+            </div>
+          </section>
         )}
 
+        {/* APPOINTMENTS TAB */}
         {activeTab === "appointments" && (
-          <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">Upcoming Appointments</h2>
-              <span className="px-3 py-1 bg-pink-100 text-pink-800 rounded-full text-sm font-medium">
-                {bookings.length} appointments
-              </span>
+          <section className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg shadow-black/40 space-y-4">
+            {/* HEADER */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-50">
+                  Appointments
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Manage upcoming jobs, confirmations and emergencies.
+                </p>
+              </div>
+
+{/* UPCOMING / PAST TOGGLE */}
+<div className="flex gap-2 mb-4 bg-zinc-950/40 border border-zinc-800 rounded-xl p-1">
+  <button
+    onClick={() => setApptTab("upcoming")}
+    className={`
+      flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all
+      ${
+        apptTab === "upcoming"
+          ? "bg-white text-black shadow-md"
+          : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+      }
+    `}
+  >
+    Upcoming
+  </button>
+
+  <button
+    onClick={() => setApptTab("past")}
+    className={`
+      flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all
+      ${
+        apptTab === "past"
+          ? "bg-white text-black shadow-md"
+          : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+      }
+    `}
+  >
+    Past
+  </button>
+</div>
+              {/* FILTER TOOLS */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1 text-zinc-200"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+
+                <label className="flex items-center space-x-1.5 bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyEmergency}
+                    onChange={(e) => setShowOnlyEmergency(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-zinc-600 text-red-500"
+                  />
+                  <span className="text-zinc-300">Emergency only</span>
+                </label>
+
+                <label className="flex items-center space-x-1.5 bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyPaid}
+                    onChange={(e) => setShowOnlyPaid(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-zinc-600 text-green-500"
+                  />
+                  <span className="text-zinc-300">Paid only</span>
+                </label>
+              </div>
             </div>
 
             <div className="space-y-4">
-              {bookings.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">📅</span>
-                  </div>
-                  <p className="text-gray-500">No upcoming appointments yet.</p>
+              {/* NO APPOINTMENTS */}
+              {listToRender.length === 0 && (
+                <div className="text-center py-8 text-sm text-zinc-500">
+                  {apptTab === "upcoming"
+                    ? "No upcoming appointments."
+                    : "No past appointments yet."}
                 </div>
-              ) : (
-                bookings.map((booking) => {
-                  const isVerified = booking.returning === "yes";
-                  return (
-                    <div key={booking.id} className="bg-gradient-to-r from-white to-pink-50 rounded-xl p-6 shadow-sm border border-pink-100">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-800">{booking.name}</h3>
-                          {booking.instagram && (
-                            <p className="text-sm text-gray-600 mt-1">📸 @{booking.instagram}</p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-gray-800">{booking.date}</p>
-                          <p className="text-sm text-gray-600">{formatTimeRange(booking.start_time, booking.end_time)}</p>
-                        </div>
-                      </div>
+              )}
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div className="space-y-2">
-                          {booking.service && (
-                            <div className="flex items-center space-x-2">
-                              <span className="text-pink-500">💅</span>
-                              <span className="text-sm text-gray-700">{booking.service}</span>
-                            </div>
-                          )}
-                          {booking.art_level && booking.art_level !== "N/A" && (
-                            <div className="flex items-center space-x-2">
-                              <span className="text-purple-500">🎨</span>
-                              <span className="text-sm text-gray-700">Nail Art: {booking.art_level}</span>
-                            </div>
-                          )}
-                          {booking.length && booking.length !== "N/A" && (
-                            <div className="flex items-center space-x-2">
-                              <span className="text-blue-500">📏</span>
-                              <span className="text-sm text-gray-700">Length: {booking.length}</span>
-                            </div>
-                          )}
-                        </div>
+              {/* APPOINTMENT CARDS */}
+              {listToRender.map((a) => (
+                <div
+                  key={a.id}
+                  className="bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-3 sm:px-5 sm:py-4"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    {/* LEFT SIDE */}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-sm text-zinc-50">
+                          {a.customerName}
+                        </p>
 
-                        <div className="space-y-2">
-                          {booking.soakoff && booking.soakoff !== "N/A" && (
-                            <div className="flex items-center space-x-2">
-                              <span className="text-orange-500">🧽</span>
-                              <span className="text-sm text-gray-700">Soak-Off: {booking.soakoff}</span>
-                            </div>
-                          )}
-                          {booking.pedicure === "yes" && (
-                            <div className="flex items-center space-x-2">
-                              <span className="text-green-500">🦶</span>
-                              <span className="text-sm text-gray-700">Pedicure: {booking.pedicure_type || "Standard"}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            booking.paid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                          }`}>
-                            {booking.paid ? "✓ Paid" : "✗ Not Paid"}
+                        {a.emergency && (
+                          <span className={getEmergencyBadgeClasses(true)}>
+                            EMERGENCY
                           </span>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            isVerified ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
-                          }`}>
-                            {isVerified ? "✓ Verified" : "⚠ New Client"}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteBooking(booking)}
-                          className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors"
-                        >
-                          Delete
-                        </button>
+                        )}
                       </div>
 
-                      {!isVerified && booking.referral?.trim() && (
-                        <div className="mt-3 pt-3 border-t border-pink-100">
-                          <p className="text-sm text-gray-500 italic">Referred by: {booking.referral}</p>
-                        </div>
+                      <p className="text-xs text-zinc-400">{a.vehicle}</p>
+
+                      <p className="text-[11px] text-zinc-500 mt-1">
+                        {a.services.join(" • ")}
+                      </p>
+
+                      <p className="text-[11px] text-zinc-500 mt-1">
+                        📍 {a.address}
+                      </p>
+
+                      <p className="text-[11px] text-zinc-500 mt-1">
+                        📞 {a.phone}
+                      </p>
+
+                      {a.notes && (
+                        <p className="text-[11px] text-zinc-500 mt-1 italic">
+                          Note: {a.notes}
+                        </p>
+                      )}
+
+                      {a.veteranDiscount && (
+                        <p className="text-[11px] text-blue-400 mt-1 font-medium">
+                          🎖️ Veteran Discount Applied
+                        </p>
                       )}
                     </div>
-                  );
-                })
-              )}
-            </div>
 
-            {/* Manual Time Block Section */}
-            <div className="mt-8 pt-8 border-t border-pink-200">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Block Off Time Manually</h3>
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6">
-                <p className="text-sm text-gray-600 mb-4">
-                  Use this form to manually block off time for walk-ins, IG referrals, or other appointments not made through the website.
-                </p>
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const date = e.target.date.value;
-                    const startTime = e.target.start_time.value;
-                    const duration = parseInt(e.target.duration.value);
-                    const endHour = parseInt(startTime.split(":")[0]) + duration;
-                    const endTime = `${endHour.toString().padStart(2, "0")}:00`;
+                    {/* RIGHT SIDE */}
+                    <div className="flex flex-col items-end gap-1 min-w-[120px]">
+                      <p className="text-xs text-zinc-400">
+                        {formatDate(a.date)} • {formatTime(a.time || "09:00")}
+                      </p>
 
-                    const { error } = await supabase.from("bookings").insert([
-                      {
-                        name: "deez nuts",
-                        phone: "offline",
-                        service: "N/A",
-                        start_time: startTime,
-                        end_time: endTime,
-                        duration,
-                        date,
-                        paid: true,
-                        returning: "no",
-                        referral: "MANUAL BLOCK",
-                      },
-                    ]);
+                      {a.distanceMiles && (
+                        <p className="text-[11px] text-zinc-500">
+                          ~{a.distanceMiles.toFixed(1)} mi from home base
+                        </p>
+                      )}
 
-                    if (error) {
-                      alert("❌ Failed to block time");
-                      console.error(error.message);
-                    } else {
-                      alert("✅ Time successfully blocked!");
-                      fetchBookings();
-                    }
-                  }}
-                  className="grid grid-cols-1 md:grid-cols-4 gap-4"
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium mt-1 ${getStatusBadgeClasses(
+                          a.status
+                        )}`}
+                      >
+                        {a.status.toUpperCase()}
+                      </span>
+{/* UPCOMING BUTTONS ONLY */}
+{apptTab === "upcoming" && (
+  <div className="flex flex-wrap gap-1 mt-2 justify-end">
+    {/* Confirm & Notify - Only show if pending */}
+    {a.status === "pending" && (
+      <button
+        onClick={() => confirmAndNotify(a.id)}
+        className="px-2.5 py-1 text-[11px] rounded-lg bg-red-600 text-white hover:bg-red-500"
+      >
+        Confirm & Notify
+      </button>
+    )}
+
+    {/* On The Way - Only show if confirmed (not pending, not on_way) */}
+    {a.status === "confirmed" && (
+      <button
+        onClick={() => handleOnTheWay(a)}
+        className="px-2.5 py-1 text-[11px] rounded-lg bg-blue-600 text-white hover:bg-blue-500"
+      >
+        On The Way
+      </button>
+    )}
+
+    {/* Mark Completed - Show if confirmed or on_way */}
+    {(a.status === "confirmed" || a.status === "on_way") && 
+     a.status !== "completed" && 
+     a.status !== "cancelled" && (
+      <button
+        onClick={() => completeAppointment(a.id)}
+        className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
+      >
+        Mark Completed
+      </button>
+    )}
+
+    {/* Cancel - Show unless cancelled or completed */}
+    {a.status !== "cancelled" && a.status !== "completed" && (
+      <button
+        onClick={() => cancelAppointment(a.id)}
+        className="px-2.5 py-1 text-[11px] rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+      >
+        Cancel
+      </button>
+    )}
+
+    {/* DELETE BUTTON - Always show in upcoming */}
+    <button
+      onClick={() => deleteAppointment(a.id)}
+      className="px-2.5 py-1 text-[11px] rounded-lg bg-red-900/20 text-red-400 border border-red-500/30 hover:bg-red-900/40"
+    >
+      🗑️ Delete
+    </button>
+  </div>
+)}
+
+                     {/* PAST APPOINTMENTS JOB NOTES */}
+{apptTab === "past" && (
+  <div className="mt-4 bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 space-y-4">
+
+    
+    {/* EXISTING NOTES / PHOTOS */}
+    {(a.savedNotes?.length > 0 || a.savedPhotos?.length > 0) && (
+      <div className="space-y-3">
+        {a.savedNotes?.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-zinc-200 mb-1">
+              Saved Notes
+            </p>
+            <ul className="space-y-1 max-h-40 overflow-y-auto pr-1">
+              {a.savedNotes.map((n) => (
+                <li
+                  key={n.id}
+                  className="text-[11px] text-zinc-300 bg-zinc-950/70 border border-zinc-800 rounded-lg px-2 py-1.5"
                 >
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                    <input
-                      type="date"
-                      name="date"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                    <select
-                      name="start_time"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                    >
-                      <option value="">Select Time</option>
-                      {Array.from({ length: 14 }, (_, i) => {
-                        const hour = i + 8;
-                        return (
-                          <option key={hour} value={`${hour.toString().padStart(2, "0")}:00`}>
-                            {hour % 12 === 0 ? 12 : hour % 12}{hour >= 12 ? "PM" : "AM"}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
-                    <select
-                      name="duration"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                    >
-                      <option value="1">1 Hour</option>
-                      <option value="2">2 Hours</option>
-                      <option value="3">3 Hours</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-end">
-                    <button
-                      type="submit"
-                      className="w-full bg-gradient-to-r from-gray-700 to-gray-800 text-white py-2 px-4 rounded-lg hover:from-gray-800 hover:to-gray-900 transition-all duration-200"
-                    >
-                      Block Time
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
+                  <span className="block text-[10px] text-zinc-500 mb-0.5">
+                    {new Date(n.created_at).toLocaleString()}
+                  </span>
+                  {n.notes}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
-        {activeTab === "gallery" && (
-          <div className="space-y-6">
-            {/* Upload Section */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Upload New Set</h2>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Choose Photo</label>
-                  <label className="cursor-pointer">
-                    <div className="border-2 border-dashed border-pink-300 rounded-xl p-8 text-center hover:border-pink-400 hover:bg-pink-50 transition-all duration-200">
-                      <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <p className="text-sm font-medium text-gray-700">Click to upload photo</p>
-                      <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 10MB</p>
-                    </div>
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                  </label>
-                </div>
+        {a.savedPhotos?.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-zinc-200 mb-1">
+              Saved Photos
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {a.savedPhotos.map((p) => {
+  const photoSrc = `https://saphvmlpnbtzyhsqpalw.supabase.co/storage/v1/object/public/job-photos/${p.photo_url}`;
+  return (
+    <img
+      key={p.id}
+      src={photoSrc}
+      alt="Job photo"
+      onClick={() => setExpandedPhoto(photoSrc)}
+      className="w-full h-24 object-cover rounded-lg border border-zinc-800 cursor-zoom-in hover:opacity-90 transition"
+    />
+  );
+})}
 
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* NEW NOTES INPUT */}
+    <div>
+      <label className="text-xs text-zinc-400 uppercase tracking-wider">
+        Job Notes
+      </label>
+      <textarea
+        value={a._localNotes || ""}
+        onChange={(e) => updateLocalNotes(a.id, e.target.value)}
+        rows={3}
+        placeholder="Add details about this job (what was wrong, what you fixed, parts used, etc.)..."
+        className="w-full mt-1 bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-200 resize-none focus:outline-none focus:ring-1 focus:ring-red-500"
+      />
+    </div>
+
+    {/* PHOTO UPLOAD */}
+    <div>
+      <label className="text-xs text-zinc-400 uppercase tracking-wider">
+        Upload Photos
+      </label>
+
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => handleLocalPhotos(a.id, e.target.files)}
+        className="mt-1 text-sm text-zinc-300"
+      />
+
+      {/* PHOTO PREVIEW GRID */}
+      {a._localPhotos && a._localPhotos.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          {a._localPhotos.map((src, i) => (
+            <img
+  key={i}
+  src={src}
+  alt="upload preview"
+  onClick={() => setExpandedPhoto(src)}
+  className="w-full h-24 object-cover rounded-lg border border-zinc-800 cursor-zoom-in hover:opacity-90 transition"
+/>
+
+          ))}
+        </div>
+      )}
+    </div>
+
+    {/* SAVE BUTTON */}
+    <div className="flex justify-end">
+      <button
+        onClick={() => saveLocalJobNotes(a.id)}
+        className="px-4 py-2 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition"
+      >
+        Save Notes
+      </button>
+    </div>
+   </div>
+)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+        {/* SCHEDULE TAB */}
+        {activeTab === "schedule" && (
+          <section className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg shadow-black/40 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-50">
+                  Work Schedule
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Control the days and hours you appear available on the booking
+                  form.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dayLabels.map(({ key, label }) => {
+                const day = schedule[key];
+                return (
+                  <div
+                    key={key}
+                    className="bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-zinc-50">
+                          {label}
+                        </span>
+                        {!day.enabled && (
+                          <span className="text-[11px] text-zinc-500">
+                            (Off)
+                          </span>
+                        )}
+                      </div>
+                      <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={day.enabled}
+                          onChange={(e) =>
+                            handleScheduleChange(
+                              key,
+                              "enabled",
+                              e.target.checked
+                            )
+                          }
+                          className="w-4 h-4 rounded border-zinc-600 text-red-500 focus:ring-red-500"
+                        />
+                        <span className="ml-1.5 text-[11px] text-zinc-400">
+                          Active
+                        </span>
+                      </label>
+                    </div>
+
+                    {day.enabled && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="flex-1">
+                          <label className="block text-[11px] text-zinc-500 mb-1">
+                            Start
+                          </label>
+                          <input
+                            type="time"
+                            value={day.start}
+                            onChange={(e) =>
+                              handleScheduleChange(key, "start", e.target.value)
+                            }
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-[11px] text-zinc-500 mb-1">
+                            End
+                          </label>
+                          <input
+                            type="time"
+                            value={day.end}
+                            onChange={(e) =>
+                              handleScheduleChange(key, "end", e.target.value)
+                            }
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-[11px] text-zinc-500">
+              Later, this schedule will directly control which times clients can
+              pick on the booking page.
+            </p>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-4 border-t border-zinc-800">
+              <div className="text-xs text-zinc-400">
+                <p className="font-medium text-zinc-300 mb-1">💡 Quick Tip:</p>
+                <p>After saving your schedule, click "Generate Availability" to automatically create bookable time slots for the next 30 days.</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleGenerateAvailability}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-xs font-medium text-white hover:bg-emerald-500 transition whitespace-nowrap"
+                >
+                  🗓️ Generate Availability
+                </button>
+                <button
+                  onClick={handleSaveSchedule}
+                  className="px-4 py-2 rounded-lg bg-red-600 text-xs font-medium text-white hover:bg-red-500 transition whitespace-nowrap"
+                >
+                  Save Schedule
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* SERVICES TAB */}
+        {activeTab === "services" && (
+          <section className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg shadow-black/40 space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-50">Services</h2>
+                <p className="text-xs text-zinc-500">
+                  These will appear on the website under &quot;Services&quot;.
+                </p>
+              </div>
+            </div>
+
+            {/* Add service form */}
+            <form
+              onSubmit={handleAddService}
+              className="bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-4 space-y-3"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Set Name</label>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Service Name (English)
+                  </label>
                   <input
                     type="text"
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="e.g. Valentine's Bling 💘"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-600"
+                    value={newService.name}
+                    onChange={(e) =>
+                      setNewService((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Brake Inspection"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Service Name (Spanish)
+                  </label>
+                  <input
+                    type="text"
+                    value={newService.nameEs}
+                    onChange={(e) =>
+                      setNewService((prev) => ({
+                        ...prev,
+                        nameEs: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Inspección de frenos"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Icon (emoji)
+                  </label>
+                  <input
+                    type="text"
+                    value={newService.icon}
+                    onChange={(e) =>
+                      setNewService((prev) => ({
+                        ...prev,
+                        icon: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. 🔧 or 🛑"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+
+<div>
+  <label className="block text-[11px] text-zinc-400 mb-1">
+    Duration (hours)
+  </label>
+  <input
+    type="number"
+    min="1"
+    max="8"
+    value={newService.duration || 1}
+    onChange={(e) =>
+      setNewService((prev) => ({
+        ...prev,
+        duration: parseInt(e.target.value) || 1,
+      }))
+    }
+    placeholder="e.g. 1 or 2"
+    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+  />
+  <p className="text-[10px] text-zinc-500 mt-1">
+    How many hours this service typically takes
+  </p>
+</div>
+
+              <div>
+                <label className="block text-[11px] text-zinc-400 mb-1">
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newService.description}
+                  onChange={(e) =>
+                    setNewService((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="What do you do for this service?"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Price (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newService.price}
+                    onChange={(e) =>
+                      setNewService((prev) => ({
+                        ...prev,
+                        price: e.target.value,
+                      }))
+                    }
+                    placeholder='e.g. "From $79" or "Parts + labor"'
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
                   />
                 </div>
 
-                {preview && (
-                  <div className="bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-6 border border-pink-200">
-                    <p className="text-sm font-medium text-gray-800 mb-3">Preview:</p>
-                    <div className="relative">
-                      <img
-                        src={preview}
-                        alt="Preview"
-                        className="w-full max-h-80 object-cover rounded-xl shadow-lg"
-                      />
-                      <div className="absolute bottom-4 left-4 bg-black/80 text-white px-3 py-1 rounded-lg text-sm font-medium">
-                        {caption || "Untitled Set"}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleUpload}
-                  disabled={!preview || !caption}
-                  className="w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3 px-6 rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
-                >
-                  Upload Set ✨
-                </button>
-              </div>
-            </div>
-
-            {/* Gallery Grid */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">Your Gallery</h2>
-                <span className="px-3 py-1 bg-pink-100 text-pink-800 rounded-full text-sm font-medium">
-                  {gallery.length} sets
-                </span>
-              </div>
-
-              {gallery.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">🖼️</span>
-                  </div>
-                  <p className="text-gray-500">No gallery items yet. Upload your first set!</p>
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Service Image (optional)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      setNewService((prev) => ({
+                        ...prev,
+                        imageFile: file,
+                        imagePreview: URL.createObjectURL(file),
+                      }));
+                    }}
+                    className="text-xs text-zinc-300"
+                  />
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {gallery.map((item) => (
-                    <div key={item.id} className="group relative bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                      <div className="relative">
-                        <img
-                          src={`https://ywpyfrothdaademzkpnl.supabase.co/storage/v1/object/public/gallery/${item.image_url}`}
-                          alt={item.caption}
-                          className="w-full h-48 object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        <button
-                          onClick={() => handleDeleteImage(item)}
-                          className="absolute top-3 right-3 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-red-600"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="p-4">
-                        <p className="font-medium text-gray-900 truncate">{item.caption}</p>
-                        <p className="text-xs text-gray-700 mt-1">
-                          {new Date(item.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+              </div>
+
+              {newService.imagePreview && (
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Image Preview
+                  </label>
+                  <img
+                    src={newService.imagePreview}
+                    alt="Service preview"
+                    className="w-32 h-32 rounded-lg object-cover border border-zinc-700"
+                  />
                 </div>
               )}
-            </div>
-          </div>
-        )}
 
-        {activeTab === "availability" && (
-          <div className="space-y-6">
-            {/* Month Generator */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Generate Monthly Availability</h2>
-              
-              <div className="flex flex-wrap gap-4 items-end">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Month</label>
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent text-gray-900"
-                  >
-                    {[
-                      "January", "February", "March", "April", "May", "June",
-                      "July", "August", "September", "October", "November", "December",
-                    ].map((month, idx) => (
-                      <option key={idx} value={idx}>{month}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                  >
-                    {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i).map((year) => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-
+              <div className="flex justify-end">
                 <button
-                  onClick={generateMonthAvailability}
-                  className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 transition-all duration-200 shadow-lg"
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-red-600 text-xs font-medium text-white hover:bg-red-500 self-end"
                 >
-                  Generate Availability 🗓️
+                  Add Service
                 </button>
               </div>
+            </form>
 
-              <div className="mt-4 p-4 bg-pink-50 rounded-xl border border-pink-200">
-                <p className="text-sm text-pink-800">
-                  <strong>Schedule:</strong> Mon: 2:30PM-8:30PM • Tue-Thur-Fri-Sat: 8AM-4PM • Wednesday&Sundays: Closed
+            {/* Services list */}
+            <div className="space-y-3">
+              {services.length === 0 && (
+                <div className="text-center py-6 text-sm text-zinc-500">
+                  No services added yet.
+                </div>
+              )}
+              {services.map((s) => (
+                <div
+                  key={s.id}
+                  className="bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-3 flex items-start justify-between gap-3"
+                >
+                  <div className="flex items-start gap-3">
+                    {s.image_url ? (
+                      <img
+                        src={`https://saphvmlpnbtzyhsqpalw.supabase.co/storage/v1/object/public/services/${s.image_url}`}
+                        alt={s.title}
+                        className="w-16 h-16 rounded-lg object-cover border border-zinc-700"
+                      />
+                    ) : s.icon && (
+                      <div className="w-16 h-16 bg-zinc-900 rounded-lg border border-zinc-700 flex items-center justify-center text-2xl">
+                        {s.icon}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-zinc-50">{s.title}</p>
+                      {s.title_es && (
+                        <p className="text-xs text-zinc-400 mt-1">
+                          ES: {s.title_es}
+                        </p>
+                      )}
+                      {s.description && (
+                        <p className="text-xs text-zinc-400 mt-1">
+                          {s.description}
+                        </p>
+                      )}
+                      {s.price && (
+                        <p className="text-[11px] text-zinc-500 mt-1">
+                          {s.price}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteService(s.id)}
+                    className="text-[11px] text-zinc-400 hover:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* REVIEWS TAB */}
+        {activeTab === "reviews" && (
+          <section className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg shadow-black/40 space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-50">
+                  Testimonials
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Add or edit reviews that will show on the homepage.
                 </p>
               </div>
             </div>
 
-            {/* Calendar */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Availability Calendar</h2>
-              
-              <div className="calendar-container">
-                <Calendar
-                  value={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
-                  onChange={(date) => {
-                    const iso = date.toISOString().split("T")[0];
-                    setSelectedDate(iso);
-                  }}
-                  tileClassName={({ date }) => {
-                    const iso = date.toISOString().split("T")[0];
-                    const isAvailable = availability.some((a) => a.date === iso);
-                    return isAvailable ? "available-date" : "";
-                  }}
-                  calendarType="US"
-                  className="w-full border-none"
-                />
+            {/* Add review form */}
+            <form
+              onSubmit={handleAddReview}
+              className="bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-4 space-y-3 text-xs"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Client Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newReview.name}
+                    onChange={(e) =>
+                      setNewReview((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Luis R."
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Service (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newReview.service}
+                    onChange={(e) =>
+                      setNewReview((prev) => ({
+                        ...prev,
+                        service: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Brake job"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">
+                    Rating
+                  </label>
+                  <select
+                    value={newReview.rating}
+                    onChange={(e) =>
+                      setNewReview((prev) => ({
+                        ...prev,
+                        rating: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  >
+                    {[5, 4, 3, 2, 1].map((r) => (
+                      <option key={r} value={r}>
+                        {r} stars
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-
-              {/* Add new slot form */}
-              {selectedDate && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                    Add Time Slot for {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
-                      weekday: "long",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </h3>
-                  
-                  <form onSubmit={handleAddSlot} className="flex flex-wrap gap-4 items-end">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                      <input
-                        type="time"
-                        required
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-gray-900"
-                        value={newSlot.start}
-                        onChange={(e) => setNewSlot((prev) => ({ ...prev, start: e.target.value }))}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                      <input
-                        type="time"
-                        required
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-gray-900"
-                        value={newSlot.end}
-                        onChange={(e) => setNewSlot((prev) => ({ ...prev, end: e.target.value }))}
-                      />
-                    </div>
-                    
-                    <button
-                      type="submit"
-                      className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-600 transition-all duration-200"
-                    >
-                      Add Slot
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              {/* Available slots for selected date */}
-              {selectedDate && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Available Times</h3>
-                  
-                  <div className="space-y-2">
-                    {availability
-                      .filter((slot) => slot.date === selectedDate)
-                      .map((slot) => (
-                        <div
-                          key={slot.id}
-                          className="flex items-center justify-between bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl px-4 py-3"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.includes(slot.id)}
-                              onChange={() => toggleSelected(slot.id)}
-                              className="w-4 h-4 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
-                            />
-                            <span className="font-medium text-gray-900">
-                              {formatTime(slot.start_time)} → {formatTime(slot.end_time)}
-                            </span>
-                          </div>
-                          
-                          <button
-                            onClick={async () => {
-                              const confirmDelete = confirm("Delete this slot?");
-                              if (!confirmDelete) return;
-                              const { error } = await supabase.from("availability").delete().eq("id", slot.id);
-                              if (error) {
-                                alert("Failed to delete slot.");
-                              } else {
-                                fetchAvailability();
-                              }
-                            }}
-                            className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      ))}
-                    
-                    {availability.filter((slot) => slot.date === selectedDate).length === 0 && (
-                      <p className="text-gray-500 text-center py-4">No times available for this day</p>
-                    )}
-                  </div>
-
-                  {selectedIds.length > 0 && (
-                    <button
-                      onClick={handleDeleteSelected}
-                      className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
-                    >
-                      Delete Selected ({selectedIds.length})
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "settings" && (
-          <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/20">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Bio Settings</h2>
-            
-            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Booking Page Bio
+                <label className="block text-[11px] text-zinc-400 mb-1">
+                  Review Text
                 </label>
                 <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200 resize-none text-gray-900 placeholder-gray-500"
-                  placeholder="Enter the bio that will appear on your booking page..."
+                  value={newReview.text}
+                  onChange={(e) =>
+                    setNewReview((prev) => ({
+                      ...prev,
+                      text: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  placeholder="What did they say about your work?"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500 resize-none"
                 />
               </div>
-              
-              <button
-                onClick={saveBio}
-                disabled={saving}
-                className="bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
-              >
-                {saving ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Saving...</span>
-                  </div>
-                ) : (
-                  "Save Bio"
+              <div>
+                <label className="block text-[11px] text-zinc-400 mb-1">
+                  Photo (optional)
+                </label>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    setNewReview((prev) => ({
+                      ...prev,
+                      photoFile: file,
+                      photoPreview: URL.createObjectURL(file),
+                    }));
+                  }}
+                  className="text-xs text-zinc-300"
+                />
+
+                {newReview.photoPreview && (
+                  <img
+                    src={newReview.photoPreview}
+                    alt="Preview"
+                    className="w-20 h-20 mt-2 rounded-lg object-cover border border-zinc-700"
+                  />
                 )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-red-600 text-xs font-medium text-white hover:bg-red-500"
+                >
+                  Add Testimonial
+                </button>
+              </div>
+            </form>
+
+            {/* Reviews list */}
+            <div className="space-y-3">
+              {reviews.length === 0 && (
+                <div className="text-center py-6 text-sm text-zinc-500">
+                  No testimonials added yet.
+                </div>
+              )}
+              {reviews.map((r) => (
+                <div
+                  key={r.id}
+                  className="bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-3 flex items-start justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-medium text-zinc-50">
+                        {r.name}
+                      </p>
+                      <p className="text-[11px] text-amber-300">
+                        {"★".repeat(r.rating)}
+                      </p>
+                    </div>
+                    {r.service && (
+                      <p className="text-[11px] text-zinc-400 mb-1">
+                        {r.service}
+                      </p>
+                    )}
+                    <p className="text-xs text-zinc-300">{r.text}</p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteReview(r.id)}
+                    className="text-[11px] text-zinc-400 hover:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* MECHANICS TAB */}
+        {activeTab === "mechanics" && (
+          <section className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg space-y-5">
+            <h2 className="text-lg font-semibold text-zinc-50">
+              Mechanics Team
+            </h2>
+            <p className="text-xs text-zinc-500">
+              Add additional mechanics for rotation.
+            </p>
+
+            {/* Add Mechanic Form */}
+            <form
+              onSubmit={handleAddMechanic}
+              className="space-y-4 bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 text-xs"
+            >
+              <InputField
+                label="Name"
+                value={newMechanic.name}
+                onChange={(e) =>
+                  setNewMechanic((p) => ({ ...p, name: e.target.value }))
+                }
+              />
+
+              <TextareaField
+                label="Short Intro"
+                rows={2}
+                value={newMechanic.bioShort}
+                onChange={(e) =>
+                  setNewMechanic((p) => ({ ...p, bioShort: e.target.value }))
+                }
+              />
+
+              <TextareaField
+                label="Long Bio"
+                rows={4}
+                value={newMechanic.bioLong}
+                onChange={(e) =>
+                  setNewMechanic((p) => ({ ...p, bioLong: e.target.value }))
+                }
+              />
+
+              <div>
+                <label className="block text-[11px] text-zinc-400 mb-1">
+                  Photo
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    setNewMechanic((p) => ({
+                      ...p,
+                      photoFile: file,
+                      photoPreview: URL.createObjectURL(file),
+                    }));
+                  }}
+                />
+
+                {newMechanic.photoPreview && (
+                  <img
+                    src={newMechanic.photoPreview}
+                    alt="Preview"
+                    className="w-20 h-20 rounded-lg mt-2 object-cover border border-zinc-700"
+                  />
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="px-4 py-2 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-500"
+              >
+                Add Mechanic
               </button>
+            </form>
+
+            {/* List Mechanics */}
+            <div className="space-y-3">
+              {mechanics.length === 0 && (
+                <p className="text-sm text-zinc-500 text-center py-4">
+                  No mechanics added yet.
+                </p>
+              )}
+
+              {mechanics.map((m) => (
+                <div
+                  key={m.id}
+                  className="bg-zinc-950/70 border border-zinc-800 rounded-xl p-4 flex items-start justify-between gap-3"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-white">{m.name}</p>
+                    <p className="text-xs text-zinc-400 mt-1">{m.bio_short}</p>
+                  </div>
+
+                  <button
+                    onClick={() => handleDeleteMechanic(m.id)}
+                    className="text-[11px] text-zinc-400 hover:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* SETTINGS TAB */}
+{activeTab === "settings" && (
+  <section className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 shadow-lg shadow-black/40 space-y-8">
+    {/* Header */}
+    <div>
+      <h2 className="text-lg font-semibold text-zinc-50">Settings</h2>
+      <p className="text-xs text-zinc-500">
+        Business information used around the site.
+      </p>
+    </div>
+
+    {/* SETTINGS FORM */}
+    <form onSubmit={handleSaveSettings} className="space-y-8 text-xs">
+      
+      {/* ========== ADD THIS ENTIRE LOGO SECTION HERE ========== */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-zinc-50 pb-2 border-b border-zinc-700">
+          Business Logo
+        </h3>
+
+        <div className="flex items-start gap-4">
+          {/* Current Logo Preview */}
+          <div className="flex-shrink-0">
+            <div className="w-32 h-32 bg-zinc-950 border border-zinc-700 rounded-lg overflow-hidden flex items-center justify-center">
+              {logoPreview ? (
+                <img
+                  src={logoPreview}
+                  alt="Logo preview"
+                  className="w-full h-full object-contain p-2"
+                />
+              ) : settings.logoUrl ? (
+                <img
+                  src={getStorageUrl("business-assets", settings.logoUrl)}
+                  alt="Current logo"
+                  className="w-full h-full object-contain p-2"
+                />
+              ) : (
+                <div className="text-center p-4">
+                  <div className="text-3xl mb-2">🔧</div>
+                  <p className="text-[10px] text-zinc-500">
+                    No logo uploaded
+                  </p>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Upload Controls */}
+          <div className="flex-1">
+            <label className="block text-[11px] text-zinc-400 mb-1">
+              Upload New Logo
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                setLogoFile(file);
+                setLogoPreview(URL.createObjectURL(file));
+              }}
+              className="text-xs text-zinc-300"
+            />
+            <p className="text-[10px] text-zinc-500 mt-2">
+              Recommended: PNG or SVG with transparent background
+              <br />
+              Max size: 2MB
+            </p>
+
+            {(logoPreview || settings.logoUrl) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLogoFile(null);
+                  setLogoPreview(null);
+                  setSettings((prev) => ({ ...prev, logoUrl: null }));
+                }}
+                className="mt-3 text-[11px] text-red-400 hover:text-red-300 transition"
+              >
+                Remove Logo
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      {/* ========== END LOGO SECTION ========== */}
+              {/* BUSINESS INFO */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InputField
+                    label="Business Name"
+                    value={settings.businessName}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        businessName: e.target.value,
+                      }))
+                    }
+                  />
+                  <InputField
+                    label="Tagline"
+                    value={settings.tagline}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        tagline: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <InputField
+                  label="Home Base Address"
+                  value={settings.baseAddress}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      baseAddress: e.target.value,
+                    }))
+                  }
+                  sublabel="Used for calculating travel distance."
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <InputField
+                    label="Main Phone"
+                    value={settings.phone}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, phone: e.target.value }))
+                    }
+                  />
+                  <InputField
+                    label="SMS Number"
+                    value={settings.smsNumber}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        smsNumber: e.target.value,
+                      }))
+                    }
+                    sublabel="Where booking and confirmation texts will be sent."
+                  />
+                  <InputField
+                    label="Contact Email"
+                    type="email"
+                    value={settings.email}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                  />
+                </div>
+
+                <TextareaField
+                  label="Business Hours"
+                  rows={3}
+                  value={settings.hours}
+                  onChange={(e) =>
+                    setSettings((prev) => ({ ...prev, hours: e.target.value }))
+                  }
+                />
+
+              
+              </div>
+              {/* SAVE GLOBAL SETTINGS */}
+              <div className="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-red-600 text-xs font-medium text-white hover:bg-red-500"
+                >
+                  Save All Settings
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {/* PROMOTIONS TAB */}
+        {activeTab === "promos" && (
+          <section className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 shadow-lg shadow-black/40 space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-50">
+                  Promotions
+                </h2>
+                <p className="text-xs text-zinc-500">
+                  Control promo banners shown on your website.
+                </p>
+              </div>
+            </div>
+
+            {/* Enable/Disable */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={promo.enabled}
+                onChange={(e) =>
+                  setPromo((prev) => ({ ...prev, enabled: e.target.checked }))
+                }
+                className="w-4 h-4 rounded border-zinc-600 text-red-500"
+              />
+              <span className="text-sm text-zinc-300">
+                Show Promo Banner on Website
+              </span>
+            </label>
+
+            {/* Promo Text */}
+            <div>
+              <label className="block text-[11px] text-zinc-400 mb-1">
+                Promo Text
+              </label>
+              <input
+                type="text"
+                value={promo.text}
+                onChange={(e) =>
+                  setPromo((prev) => ({ ...prev, text: e.target.value }))
+                }
+                placeholder="e.g. 10% Off for Veterans & First Responders!"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100"
+              />
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={handleSaveSettings}
+                className="px-4 py-2 rounded-lg bg-red-600 text-xs font-medium text-white hover:bg-red-500"
+              >
+                Save Promo Settings
+              </button>
+            </div>
+          </section>
         )}
       </div>
 
-      {/* Custom Styles */}
-      <style jsx global>{`
-        .calendar-container .react-calendar {
-          border: none !important;
-          font-family: inherit;
-          width: 100%;
-        }
-        
-        .calendar-container .react-calendar__tile {
-          border-radius: 8px !important;
-          border: none !important;
-          background: transparent !important;
-          padding: 12px !important;
-          transition: all 0.2s ease !important;
-        }
-        
-        .calendar-container .react-calendar__tile:hover {
-          background: rgb(249 168 212 / 0.3) !important;
-          transform: scale(1.05);
-        }
-        
-        .calendar-container .react-calendar__tile--now {
-          background: rgb(244 114 182 / 0.2) !important;
-          font-weight: bold !important;
-        }
-        
-        .calendar-container .available-date {
-          background: rgb(244 114 182 / 0.4) !important;
-          color: rgb(159 18 57) !important;
-          font-weight: 600 !important;
-        }
-        
-        .calendar-container .react-calendar__navigation {
-          background: rgb(244 114 182 / 0.1) !important;
-          border-radius: 12px !important;
-          margin-bottom: 16px !important;
-        }
-        
-        .calendar-container .react-calendar__navigation button {
-          color: rgb(159 18 57) !important;
-          font-weight: 600 !important;
-          border-radius: 8px !important;
-        }
-        
-        .calendar-container .react-calendar__navigation button:hover {
-          background: rgb(244 114 182 / 0.2) !important;
-        }
-        
-        .calendar-container .react-calendar__month-view__weekdays {
-          font-weight: 600 !important;
-          color: rgb(107 114 128) !important;
-        }
-      `}</style>
+      {expandedPhoto && (
+  <div
+    className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
+    onClick={() => setExpandedPhoto(null)}
+  >
+    <div
+      className="relative max-w-3xl w-full px-4"
+      onClick={(e) => e.stopPropagation()} // prevent closing when clicking image
+    >
+      <button
+        onClick={() => setExpandedPhoto(null)}
+        className="absolute -top-8 right-2 text-zinc-300 hover:text-white text-sm"
+      >
+        ✕ Close
+      </button>
+
+      <img
+        src={expandedPhoto}
+        alt="Expanded job photo"
+        className="w-full max-h-[80vh] object-contain rounded-xl border border-zinc-700 shadow-xl"
+      />
+    </div>
+  </div>
+)}
+
     </main>
   );
 }

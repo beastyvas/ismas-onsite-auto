@@ -1,126 +1,253 @@
 "use client";
 
-import confetti from "canvas-confetti";
 import toast, { Toaster } from "react-hot-toast";
-import { useRef, useEffect, useState } from "react";
-import NailGallery from "@/components/NailGallery";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import RepairGallery from "@/components/RepairGallery";
 import { supabase } from "@/utils/supabaseClient";
-import { loadStripe } from "@stripe/stripe-js";
 import { v4 as uuidv4 } from "uuid";
 import "react-calendar/dist/Calendar.css";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
-const Calendar = dynamic(() => import("react-calendar"), { ssr: false });
-const getStripe = () => loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+// Lazy load Calendar for better initial load
+const Calendar = dynamic(() => import("react-calendar"), { 
+  ssr: false,
+  loading: () => (
+    <div className="h-80 bg-slate-900/50 rounded-lg flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+    </div>
+  )
+});
 
 export default function Home() {
   const formRef = useRef();
   const [selectedDate, setSelectedDate] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [service, setService] = useState("");
-  const [pedicure, setPedicure] = useState("");
-  const [duration, setDuration] = useState(0);
-  const [soakoff, setSoakoff] = useState("");
-  const [bioText, setBioText] = useState("");
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [duration, setDuration] = useState(1);
   const [timeOptions, setTimeOptions] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
   const [time, setTime] = useState("");
-  const [isReturning, setIsReturning] = useState(false);
-  const [bookingNails, setBookingNails] = useState("")
-  const [pedicureType, setPedicureType] = useState("");
+  const [isVeteran, setIsVeteran] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(true);
+  const [language, setLanguage] = useState("en");
+  const [showPromo, setShowPromo] = useState(false);
+  const [promoText, setPromoText] = useState("");
+  
+  // Data from database
+  const [settings, setSettings] = useState({
+    businessName: "Isma's OnSite Auto Repair",
+    phone: "(702) 801-7210",
+    hours: "Mon-Sat: 8AM - 6PM",
+  });
+  const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [fade, setFade] = useState(true);
+  const [testimonials, setTestimonials] = useState([]);
+  const [currentService, setCurrentService] = useState(0);
+  const [services, setServices] = useState([]);
+  const [mechanics, setMechanics] = useState([]);
+  const [currentMechanic, setCurrentMechanic] = useState(0);
+  const [serviceOptions, setServiceOptions] = useState([]);
 
-  useEffect(() => {
-    let d = 0;
-    if (bookingNails === "yes") d += 2;
-    if (pedicure === "yes") d += 1;
-    setDuration(d);
-  }, [bookingNails, pedicure]);
-
-  useEffect(() => {
-    const fetchBio = async () => {
-      const { data, error } = await supabase.from("settings").select("bio").single();
-      if (!error && data) setBioText(data.bio || "");
-    };
-    fetchBio();
+  // Memoized storage URL helper
+  const getStorageUrl = useCallback((bucket, path) => {
+    if (!path) return null;
+    return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
   }, []);
 
+  // Fetch all data on mount
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        // Fetch in parallel for better performance
+        const [
+          { data: servicesData },
+          { data: settingsData },
+          { data: testimonialsData },
+          { data: mechanicsData },
+          { data: availabilityData }
+        ] = await Promise.all([
+          supabase.from("services").select("*").order("created_at", { ascending: true }),
+          supabase.from("settings").select("*").maybeSingle(),
+          supabase.from("testimonials").select("*").order("created_at", { ascending: false }),
+          supabase.from("mechanics").select("*").order("created_at", { ascending: true }),
+          supabase.from("availability").select("date")
+        ]);
+
+        // Process services
+        if (servicesData?.length > 0) {
+          const formattedOptions = servicesData.map((service) => ({
+            id: service.id,
+            name: service.title,
+            nameEs: service.title_es || service.title,
+            duration: service.duration || 1,
+            icon: service.icon || "🔧",
+            price: service.price,
+          }));
+          setServiceOptions(formattedOptions);
+          setServices(servicesData);
+        }
+
+        // Process settings
+        if (settingsData) {
+          setSettings({
+            businessName: settingsData.business_name || "Isma's OnSite Auto Repair",
+            phone: settingsData.phone || "(702) 801-7210",
+            hours: settingsData.hours || "Mon-Sat: 8AM - 6PM",
+            logoUrl: settingsData.logo_url || null,
+          });
+          
+          if (settingsData.promo_enabled && settingsData.promo_text) {
+            setPromoText(settingsData.promo_text);
+            setShowPromo(true);
+          }
+        }
+
+        // Process testimonials
+        if (testimonialsData) {
+          setTestimonials(testimonialsData);
+        }
+
+        // Process mechanics with fallback
+        if (mechanicsData?.length > 0) {
+          setMechanics(mechanicsData);
+        } else {
+          setMechanics([{
+            name: "Isma",
+            bio_short: "Certified mobile mechanic with years of experience.",
+            bio_long: "I bring the tools and expertise right to your driveway.",
+            photo_url: null,
+          }]);
+        }
+
+        // Process available dates
+        if (availabilityData) {
+          const normalized = [...new Set(
+            availabilityData.map((d) => new Date(d.date).toISOString().split("T")[0])
+          )];
+          setAvailableDates(normalized);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchAllData();
+  }, []);
+
+  // Auto-rotate testimonials
+  useEffect(() => {
+    if (testimonials.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setFade(false);
+      setTimeout(() => {
+        setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
+        setFade(true);
+      }, 300);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [testimonials.length]);
+
+  // Auto-rotate mechanics
+  useEffect(() => {
+    if (mechanics.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentMechanic((prev) => (prev + 1) % mechanics.length);
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [mechanics.length]);
+
+  // Auto-rotate services
+  useEffect(() => {
+    if (services.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentService((prev) => (prev + 1) % services.length);
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [services.length]);
+
+  // Calculate total duration
+  useEffect(() => {
+    const total = selectedServices.reduce((sum, serviceId) => {
+      const service = serviceOptions.find(s => s.id === serviceId);
+      return sum + (service?.duration || 1);
+    }, 0);
+    setDuration(total || 1);
+  }, [selectedServices, serviceOptions]);
+
+  // Load available times for selected date
   useEffect(() => {
     const loadAvailableTimes = async () => {
-      if (!selectedDate || !duration) return setTimeOptions([]);
-
-      const { data: availabilityData, error: availErr } = await supabase
-        .from("availability")
-        .select("start_time, end_time")
-        .eq("date", selectedDate)
-        .single();
-
-      if (availErr || !availabilityData) {
-        console.error("No availability:", availErr);
+      if (!selectedDate || !duration) {
         setTimeOptions([]);
         return;
       }
 
-      const startHour = parseInt(availabilityData.start_time.split(":")[0]);
-      const endHour = parseInt(availabilityData.end_time.split(":")[0]);
+      try {
+        const { data: availabilityData, error: availErr } = await supabase
+          .from("availability")
+          .select("start_time, end_time")
+          .eq("date", selectedDate)
+          .single();
 
-   // fetch booked ranges via RPC (works for anon because SECURITY DEFINER)
-const { data: booked, error: bookedErr } = await supabase
-  .rpc('get_booked_slots', { p_date: selectedDate }); // 'YYYY-MM-DD'
+        if (availErr || !availabilityData) {
+          setTimeOptions([]);
+          return;
+        }
 
-if (bookedErr) {
-  console.error('Booking RPC error:', bookedErr);
-  return;
-}
+        const startHour = parseInt(availabilityData.start_time.split(":")[0]);
+        const endHour = parseInt(availabilityData.end_time.split(":")[0]);
 
-/*
-  booked = [{ start_time: '14:00:00', end_time: '16:00:00' }, ...]
-  Convert to hours and subtract from availability.
-*/
-const bookedRanges = booked.map(({ start_time, end_time }) => {
-  const [sh] = String(start_time).split(':');
-  const [eh] = String(end_time).split(':');
-  return { start: parseInt(sh, 10), end: parseInt(eh, 10) };
-});
+        const { data: booked, error: bookedErr } = await supabase
+          .rpc('get_booked_slots', { p_date: selectedDate });
 
-const available = [];
-for (let hour = startHour; hour <= endHour - duration; hour++) {
-  const overlaps = bookedRanges.some(r => hour < r.end && (hour + duration) > r.start);
-  if (!overlaps) available.push(`${String(hour).padStart(2,'0')}:00`);
-}
-setTimeOptions(available);
-    }
+        if (bookedErr) {
+          console.error('Booking RPC error:', bookedErr);
+          return;
+        }
+
+        const bookedRanges = booked.map(({ start_time, end_time }) => {
+          const [sh] = String(start_time).split(':');
+          const [eh] = String(end_time).split(':');
+          return { start: parseInt(sh, 10), end: parseInt(eh, 10) };
+        });
+
+        const available = [];
+        for (let hour = startHour; hour <= endHour - duration; hour++) {
+          const overlaps = bookedRanges.some(r => hour < r.end && (hour + duration) > r.start);
+          if (!overlaps) available.push(`${String(hour).padStart(2,'0')}:00`);
+        }
+        setTimeOptions(available);
+      } catch (error) {
+        console.error("Error loading times:", error);
+        setTimeOptions([]);
+      }
+    };
 
     loadAvailableTimes();
   }, [selectedDate, duration]);
 
-  useEffect(() => {
-    const fetchAvailableDates = async () => {
-      const { data, error } = await supabase
-        .from("availability")
-        .select("date");
-
-      if (error) {
-        console.error("Failed to fetch available dates:", error.message);
-        return;
-      }
-
-      const normalized = [
-        ...new Set(data.map((d) => new Date(d.date).toISOString().split("T")[0])),
-      ];
-      setAvailableDates(normalized);
-    };
-
-    fetchAvailableDates();
-  }, []);
-
-  function formatTo12Hour(timeStr) {
+  const formatTo12Hour = useCallback((timeStr) => {
     const [hourStr] = timeStr.split(":");
     const hour = parseInt(hourStr);
     const suffix = hour >= 12 ? "PM" : "AM";
     const h = hour % 12 === 0 ? 12 : hour % 12;
-    return `${h}${suffix}`;
-  }
+    return `${h}:00 ${suffix}`;
+  }, []);
+
+  const handleServiceToggle = useCallback((serviceId) => {
+    setSelectedServices(prev => 
+      prev.includes(serviceId) 
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId]
+    );
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -130,42 +257,25 @@ setTimeOptions(available);
     const form = formRef.current;
     const data = new FormData(form);
 
-    const name = data.get("name");
-    const instagram = data.get("instagram");
-    const phone = data.get("phone");
-    const service = data.get("service");
-    const artLevel = data.get("artLevel");
-    const date = data.get("date");
-    const start_time = data.get("start_time");
-    const length = data.get("Length");
-    const notes = data.get("notes");
-    const returning = data.get("returning");
-    const referral = data.get("referral");
-    const soakoff = data.get("soakoff");
-    const pedicure = data.get("pedicure");
-    const pedicureType = data.get("pedicureType") || "";
-    const bookingNails = data.get("bookingNails") || "no";
-    const bookingId = uuidv4();
-    const durationHours = duration;
+    const services = selectedServices.map(id => {
+      const service = serviceOptions.find(s => s.id === id);
+      return service?.name || id;
+    }).join(", ");
 
     const payload = {
-      id: bookingId,
-      name,
-      instagram,
-      phone,
-      service,
-      artLevel,
-      date,
-      start_time,
-      length,
-      notes,
-      returning,
-      duration: durationHours,
-      soakoff,
-      referral,
-      pedicure,
-      pedicure_type: pedicureType,
-      booking_nails: bookingNails,
+      id: uuidv4(),
+      name: data.get("name"),
+      phone: data.get("phone"),
+      address: data.get("address"),
+      vehicle_info: data.get("vehicleInfo"),
+      services,
+      date: data.get("date"),
+      start_time: data.get("start_time"),
+      notes: data.get("notes"),
+      duration,
+      is_emergency: data.get("isEmergency") === "on",
+      veteran_discount: data.get("veteranDiscount") === "on",
+      paid: false,
     };
 
     try {
@@ -178,519 +288,1019 @@ setTimeOptions(available);
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error("Booking failed");
 
-      const bookingMetadata = {
-        booking_id: bookingId,
-        name,
-        instagram,
-        phone,
-        service,
-        artLevel,
-        date,
-        start_time,
-        length,
-        notes,
-        returning,
-        pedicure_type: pedicureType,
-        booking_nails: bookingNails,
-        duration: durationHours,
-        soakoff,
-        referral,
-        pedicure,
-      };
+      toast.success(
+        language === "en" 
+          ? "Booking request submitted! We'll contact you shortly." 
+          : "¡Solicitud de reserva enviada! Nos pondremos en contacto pronto.",
+        { duration: 3000, position: "bottom-center" }
+      );
 
-      const stripeRes = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingMetadata }),
-      });
+      formRef.current.reset();
+      setSelectedServices([]);
+      setSelectedDate(null);
+      setTime("");
+      setIsVeteran(false);
 
-      const stripeJson = await stripeRes.json();
-      if (!stripeRes.ok) throw new Error(stripeJson.error || "Stripe checkout failed");
-
-      toast.success("Booking request submitted!", {
-        duration: 2000,
-        position: "bottom-center",
-      });
-
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-
-      window.location.href = stripeJson.url;
     } catch (err) {
       console.error("Error during booking:", err.message);
-      toast.error("Something went wrong. Please try again.");
+      toast.error(
+        language === "en"
+          ? "Something went wrong. Please try again."
+          : "Algo salió mal. Por favor, inténtelo de nuevo."
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const translations = useMemo(() => ({
+    en: {
+      hero: "Professional Mobile Auto Repair",
+      subtitle: "We Come To You - Clark County & Surrounding Areas",
+      bookNow: "Book Service",
+      emergency: "Emergency Repair",
+      since: "Serving Las Vegas Since 2021",
+      services: "Our Services",
+      testimonials: "What Our Customers Say",
+      schedule: "Schedule Your Service",
+      contact: "Contact Information",
+      phone: "Phone",
+      serviceArea: "Service Area",
+      hours: "Hours",
+      scheduleSubtitle: "Fill out the form below and we'll get back to you shortly",
+      contactInfo: "Contact Information",
+      fullName: "Full Name",
+      phoneNumber: "Phone Number (e.g. 7021234567)",
+      serviceAddress: "Service Address",
+      vehicle: "Vehicle (Year, Make, Model)",
+      selectServices: "Select Services",
+      estimatedTime: "Estimated time",
+      hoursText: "hour(s)",
+      scheduleTitle: "Schedule",
+      selectTime: "Select Time",
+      additionalInfo: "Additional Info",
+      describeIssue: "Describe the issue or service needed...",
+      emergencyRepair: "Emergency repair (priority)",
+      emergencySubtext: "We'll prioritize your request",
+      firstResponder: "First Responder discount",
+      discountSubtext: "Special pricing available",
+      requestAppointment: "Request Appointment",
+      submitting: "Submitting Request...",
+      selectOneService: "Please select at least one service",
+      serviceAreaPayment: "Service Area & Payment",
+      clarkCounty: "Clark County",
+      clarkCountyDesc: "No travel fee for Las Vegas, North Las Vegas, Henderson, and Boulder City",
+      outsideClark: "Outside Clark County",
+      outsideClarkDesc: "Transportation fee may apply. Call for quote:",
+      payment: "Payment:",
+      paymentMethods: "Cash, Venmo, Zelle, Cash App",
+      dashboardLogin: "Dashboard Login",
+      selectLanguage: "Select Language",
+      chooseLanguage: "Choose your preferred language",
+      english: "English",
+      spanish: "Español",
+      mondaySaturday: "Mon-Sat: 8AM - 6PM",
+      firstResponderDiscounts: "First Responder Discounts",
+      available: "Available",
+      meetMechanic: "Meet Your Mechanic",
+      mechanicIntro1: "Hey, I'm",
+      bookAppointment: "Book an Appointment",
+      addressNote: "Please include full address with city, state, and zip code",
+    },
+    es: {
+      hero: "Reparación Móvil Profesional de Autos",
+      subtitle: "Vamos A Ti - Condado de Clark y Áreas Circundantes",
+      bookNow: "Reservar Servicio",
+      emergency: "Reparación de Emergencia",
+      since: "Sirviendo a Las Vegas Desde 2021",
+      services: "Nuestros Servicios",
+      testimonials: "Lo Que Dicen Nuestros Clientes",
+      schedule: "Programe Su Servicio",
+      contact: "Información de Contacto",
+      phone: "Teléfono",
+      serviceArea: "Área de Servicio",
+      hours: "Horario",
+      scheduleSubtitle: "Complete el formulario y nos comunicaremos pronto",
+      contactInfo: "Información de Contacto",
+      fullName: "Nombre Completo",
+      phoneNumber: "Número de Teléfono (ej. 7021234567)",
+      serviceAddress: "Dirección del Servicio",
+      vehicle: "Vehículo (Año, Marca, Modelo)",
+      selectServices: "Seleccionar Servicios",
+      estimatedTime: "Tiempo estimado",
+      hoursText: "hora(s)",
+      scheduleTitle: "Horario",
+      selectTime: "Seleccionar Hora",
+      additionalInfo: "Información Adicional",
+      describeIssue: "Describa el problema o servicio necesario...",
+      emergencyRepair: "Reparación de emergencia (prioridad)",
+      emergencySubtext: "Priorizaremos su solicitud",
+      firstResponder: "Descuento para primeros respondedores",
+      discountSubtext: "Precios especiales disponibles",
+      requestAppointment: "Solicitar Cita",
+      submitting: "Enviando Solicitud...",
+      selectOneService: "Por favor seleccione al menos un servicio",
+      serviceAreaPayment: "Área de Servicio y Pago",
+      clarkCounty: "Condado de Clark",
+      clarkCountyDesc: "Sin tarifa de viaje para Las Vegas, North Las Vegas, Henderson y Boulder City",
+      outsideClark: "Fuera del Condado de Clark",
+      outsideClarkDesc: "Puede aplicar tarifa de transporte. Llame para cotización:",
+      payment: "Pago:",
+      paymentMethods: "Efectivo, Venmo, Zelle, Cash App",
+      dashboardLogin: "Acceso al Panel",
+      selectLanguage: "Seleccionar Idioma",
+      chooseLanguage: "Elija su idioma preferido",
+      english: "English",
+      spanish: "Español",
+      mondaySaturday: "Lun-Sáb: 8AM - 6PM",
+      firstResponderDiscounts: "Descuentos para Primeros Respondedores",
+      available: "Disponibles",
+      meetMechanic: "Conoce a Tu Mecánico",
+      mechanicIntro1: "Hola, soy",
+      bookAppointment: "Reservar una Cita",
+      addressNote: "Por favor incluya la dirección completa con ciudad, estado y código postal",
+    }
+  }), []);
+
+  const t = translations[language];
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-pink-50 via-rose-50 to-purple-50 p-4 sm:p-6 md:p-10 text-gray-800">
-      <Toaster />
-      <div className="max-w-2xl mx-auto">
-        {/* Header Section */}
-        <section className="text-center mb-8">
-          <div className="relative inline-block mb-6">
-            <img
-              src="/images/mya.png"
-              alt="Mya - Las Vegas Nail Tech"
-              className="w-32 h-32 sm:w-40 sm:h-40 object-cover rounded-full mx-auto shadow-2xl border-4 border-white"
-            />
-            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full flex items-center justify-center shadow-lg">
-              <span className="text-white text-lg">💅</span>
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-gray-100">
+      <Toaster position="bottom-center" />
+
+      {/* Language Selection Modal */}
+      {showLanguageModal && (
+        <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-blue-500 max-w-md w-full p-6 sm:p-8 shadow-2xl rounded-lg">
+            <h2 className="text-xl sm:text-2xl font-bold text-center mb-2 text-white">
+              {t.selectLanguage}
+            </h2>
+            <p className="text-center text-gray-300 text-sm mb-6 sm:mb-8">{t.chooseLanguage}</p>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <button
+                onClick={() => {
+                  setLanguage("en");
+                  setShowLanguageModal(false);
+                }}
+                className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 transition-all duration-200 rounded-lg shadow-lg hover:shadow-xl"
+              >
+                <div className="text-2xl mb-2">🇺🇸</div>
+                <div className="text-sm">{t.english}</div>
+              </button>
+              <button
+                onClick={() => {
+                  setLanguage("es");
+                  setShowLanguageModal(false);
+                }}
+                className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 transition-all duration-200 rounded-lg shadow-lg hover:shadow-xl"
+              >
+                <div className="text-2xl mb-2">🇲🇽</div>
+                <div className="text-sm">{t.spanish}</div>
+              </button>
             </div>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent mb-4">
-            Hey babes 💋
-          </h2>
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
-            <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
-              {bioText || "Loading bio..."}
+        </div>
+      )}
+
+      {/* Promo Banner - Mobile Optimized */}
+      {showPromo && promoText && (
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2 sm:py-3 px-3 sm:px-4 border-b border-blue-500 shadow-lg sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+            <p className="text-xs sm:text-sm font-semibold text-center flex-1 leading-tight">
+              {promoText}
             </p>
-          </div>
-        </section>
-
-        <NailGallery />
-
-        {/* Social Links */}
-        <section className="text-center mb-8">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-rose-600 bg-clip-text text-transparent mb-4">
-            Book Now ✨
-          </h2>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
-            <a
-              href="https://instagram.com/myasnailsbaby"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-full font-semibold hover:from-pink-600 hover:to-rose-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+            <button
+              onClick={() => setShowPromo(false)}
+              className="flex-shrink-0 text-blue-200 hover:text-white transition-colors text-lg font-bold"
+              aria-label="Close promo"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M7.75 2C4.574 2 2 4.574 2 7.75v8.5C2 19.426 4.574 22 7.75 22h8.5C19.426 22 22 19.426 22 16.25v-8.5C22 4.574 19.426 2 16.25 2h-8.5zm0 1.5h8.5A5.25 5.25 0 0 1 21.5 8.75v6.5A5.25 5.25 0 0 1 16.25 20.5h-8.5A5.25 5.25 0 0 1 2.5 15.25v-6.5A5.25 5.25 0 0 1 7.75 3.5zM12 7.25A4.75 4.75 0 1 0 16.75 12 4.75 4.75 0 0 0 12 7.25zM12 8.75a3.25 3.25 0 1 1-3.25 3.25A3.25 3.25 0 0 1 12 8.75zm5.75-.5a1.25 1.25 0 1 1-1.25-1.25 1.25 1.25 0 0 1 1.25 1.25z" />
-              </svg>
-              Follow on Instagram
-            </a>
-            <a 
-              href="tel:7029818428" 
-              className="inline-flex items-center bg-white/70 backdrop-blur-sm text-gray-800 px-6 py-3 rounded-full font-semibold hover:bg-white/90 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 border border-white/20"
-            >
-              <span className="text-lg mr-2">📞</span> 
-              (702) 981-8428
-            </a>
+              ✕
+            </button>
           </div>
-        </section>
+        </div>
+      )}
 
-        {/* Booking Form */}
-        <form
-          ref={formRef}
-          onSubmit={handleSubmit}
-          className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-6 sm:p-8 space-y-6"
-        >
-          {/* Personal Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2">Personal Info</h3>
-            
-            <input 
-              type="text" 
-              name="name" 
-              placeholder="Full Name" 
-              required 
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200" 
-            />
-            
-            <input 
-              type="text" 
-              name="instagram" 
-              placeholder="Instagram Handle" 
-              required 
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200" 
-            />
-            
-            <input
-              type="tel"
-              name="phone"
-              placeholder="Phone Number (e.g. 7021234567)"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-              pattern="\d{10}"
-              inputMode="numeric"
-              title="Enter a 10-digit phone number (no dashes or spaces)"
-            />
-          </div>
+      {/* Hero Section - Mobile Optimized */}
+      <section className="bg-gradient-to-br from-slate-900 to-slate-800 border-b border-blue-900/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-24">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+            {/* Left: Logo & Text */}
+            <div className="text-center lg:text-left">
+              <div className="mb-6 sm:mb-8">
+                <img
+  src={
+    settings.logoUrl
+      ? getStorageUrl('business-assets', settings.logoUrl)
+      : "onsite-auto/images/logo.png"
+  }
+  alt="Onsite Auto Repairs Logo"
+  className="w-48 sm:w-56 md:w-64 mx-auto lg:mx-0 drop-shadow-2xl"
+  loading="eager"
+/>
+              </div>
+              
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extrabold mb-4 sm:mb-6 leading-tight text-white tracking-tight">
+                {t.hero}
+              </h1>
+              
+              <p className="text-base sm:text-lg lg:text-xl text-gray-300 mb-6 sm:mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                {t.subtitle}
+              </p>
 
-          {/* Service Selection */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2">Services</h3>
-            
-            {/* Nail Service */}
-            <select
-              name="bookingNails"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-              value={bookingNails}
-              onChange={(e) => {
-                const val = e.target.value;
-                setBookingNails(val);
-                if (val === "no") {
-                  setService("");
-                  setSoakoff("");
-                }
-              }}
-            >
-              <option value="">💅 Are you booking nails?</option>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-
-            {bookingNails === "yes" && (
-              <div className="space-y-4 bg-pink-50 rounded-xl p-4 border border-pink-200">
-                <select
-                  name="service"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-                  value={service}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setService(val);
-                    setDuration(
-                      val ? 2 + (pedicure === "yes" ? 1 : 0) : pedicure === "yes" ? 1 : 0
-                    );
-                  }}
-                >
-                  <option value="">Select Nail Service</option>
-                  <option value="Gel-X">Gel-X</option>
-                  <option value="Acrylic">Acrylic</option>
-                  <option value="Gel Manicure">Gel Manicure</option>
-                  <option value="Hard Gel">Hard Gel</option>
-                  <option value="Builder Gel Manicure">Builder Gel Manicure</option>
-                </select>
-
-                <select
-                  name="soakoff"
-                  value={soakoff}
-                  onChange={(e) => setSoakoff(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-                >
-                  <option value="">Soak-Off Option</option>
-                  <option value="none">No Soak-Off</option>
-                  <option value="soak-off">Soak-Off</option>
-                  <option value="foreign">Foreign Soak-Off</option>
-                </select>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <select 
-                    name="artLevel" 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Nail Art Level</option>
-                    <option value="N/A">N/A</option>
-                    <option value="Level 1">Level 1</option>
-                    <option value="Level 2">Level 2</option>
-                    <option value="Level 3">Level 3</option>
-                    <option value="Level 4">Level 4</option>
-                    <option value="French Tips">French Tips</option>
-                  </select>
-
-                  <select 
-                    name="Length" 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Nail Length</option>
-                    <option value="N/A">N/A</option>
-                    <option value="Small/Xtra Small">Short/Xtra Short</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Large">Large</option>
-                    <option value="XL/XXL">XL/XXL</option>
-                  </select>
+              {/* Trust Badge */}
+              <div className="mb-6 sm:mb-8">
+                <div className="inline-flex items-center bg-slate-800/50 border border-blue-500/30 px-4 sm:px-5 py-2 sm:py-3 rounded-lg">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 mr-2 sm:mr-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  <span className="text-xs sm:text-sm font-medium text-gray-200">{t.since}</span>
                 </div>
               </div>
-            )}
 
-            {/* Pedicure */}
-            <select
-              name="pedicure"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-              value={pedicure}
-              onChange={(e) => setPedicure(e.target.value)}
-            >
-              <option value="">🦶 Are you booking a pedicure?</option>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-
-            {pedicure === "yes" && (
-              <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-                <select
-                  name="pedicureType"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-                  value={pedicureType}
-                  onChange={(e) => setPedicureType(e.target.value)}
+              {/* CTA Buttons - Mobile Optimized */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
+                <a
+                  href="#booking"
+                  className="inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-sm sm:text-base transition-all duration-200 shadow-lg hover:shadow-xl hover:shadow-blue-500/50"
                 >
-                  <option value="">Select Pedicure Type</option>
-                  <option value="Gel pedicure">Gel Pedicure</option>
-                  <option value="Gel pedciure + Acrylic big toes">Gel Pedicure + Acrylic big toes(only)</option>
-                  <option value="Acrylic Pedicure">Acrylic Pedicure</option>
-                </select>
+                  {t.bookNow}
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </a>
+                <a
+                  href={`tel:${settings.phone}`}
+                  className="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-sm sm:text-base transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  {t.emergency}
+                </a>
               </div>
-            )}
+            </div>
+
+            {/* Right: Contact & Hours - Mobile Optimized */}
+            <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 p-6 sm:p-8 lg:p-10 shadow-2xl rounded-lg">
+              <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-white flex items-center">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {t.contact}
+              </h3>
+              
+              <div className="space-y-4 sm:space-y-6">
+                {/* Phone */}
+                <div className="flex items-start space-x-3 sm:space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600/20 border border-blue-500/30 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t.phone}</p>
+                    <a href={`tel:${settings.phone}`} className="text-base sm:text-lg font-semibold text-white hover:text-blue-400 transition-colors">
+                      {settings.phone}
+                    </a>
+                  </div>
+                </div>
+
+                {/* Service Area */}
+                <div className="flex items-start space-x-3 sm:space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600/20 border border-blue-500/30 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t.serviceArea}</p>
+                    <p className="text-base sm:text-lg font-semibold text-white">Clark County, NV</p>
+                  </div>
+                </div>
+
+                {/* Hours */}
+                <div className="flex items-start space-x-3 sm:space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600/20 border border-blue-500/30 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t.hours}</p>
+                    <p className="text-base sm:text-lg font-semibold text-white">{settings.hours}</p>
+                  </div>
+                </div>
+
+                {/* Discount Badge */}
+                <div className="pt-4 sm:pt-6 border-t border-blue-500/20">
+                  <div className="flex items-center space-x-2 sm:space-x-3 bg-blue-600/10 border border-blue-500/30 p-3 sm:p-4 rounded-lg">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-xs sm:text-sm text-gray-200">
+                      <span className="font-semibold text-white">{t.firstResponderDiscounts}</span> {t.available}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Meet Your Mechanic - Mobile Optimized */}
+      <section className="py-12 sm:py-16 px-4 sm:px-6 bg-slate-800/30">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10 items-center">
+          {/* PHOTO */}
+          <div className="flex justify-center order-1 md:order-none">
+            <div className="w-56 h-56 sm:w-64 sm:h-64 rounded-2xl overflow-hidden border-2 border-blue-500/30 shadow-2xl shadow-blue-500/20">
+              <img
+                src={
+                  mechanics[currentMechanic]?.photo_url
+                    ? getStorageUrl('mechanics', mechanics[currentMechanic].photo_url)
+                    : "/images/placeholder-mechanic.jpg"
+                }
+                alt={mechanics[currentMechanic]?.name || "Mechanic"}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
           </div>
 
-          {/* Date & Time Selection */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2">Schedule</h3>
-            
-            <div className="calendar-wrapper bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-              <Calendar
-                value={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
-                onChange={(date) => {
-                  const isoDate = date.toISOString().split("T")[0];
-                  setSelectedDate(isoDate);
-                }}
-                tileDisabled={({ date }) => {
-                  const iso = date.toISOString().split("T")[0];
-                  return !availableDates.includes(iso);
-                }}
-                tileClassName={({ date }) => {
-                  const iso = date.toISOString().split("T")[0];
-                  const isSelected = selectedDate === iso;
-                  const isAvailable = availableDates.includes(iso);
+          {/* TEXT */}
+          <div className="order-2 md:order-none">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-white">
+              {t.meetMechanic}
+            </h2>
 
-                  return isSelected
-                    ? "selected-date"
-                    : isAvailable
-                    ? "available-date"
-                    : null;
-                }}
-                calendarType="US"
-                className="w-full"
+            <p className="text-sm sm:text-base text-gray-300 leading-relaxed mb-3 sm:mb-4">
+              {t.mechanicIntro1}{" "}
+              <span className="font-semibold text-blue-400">
+                {mechanics[currentMechanic]?.name}
+              </span>.{" "}
+              {mechanics[currentMechanic]?.bio_short}
+            </p>
+
+            <p className="text-sm sm:text-base text-gray-400 leading-relaxed mb-4 sm:mb-6">
+              {mechanics[currentMechanic]?.bio_long}
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <a
+                href="#booking"
+                className="inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold shadow-lg shadow-blue-600/40 transition-all text-sm sm:text-base"
+              >
+                {t.bookAppointment}
+              </a>
+
+              {/* Optional next/prev buttons */}
+              {mechanics.length > 1 && (
+                <div className="flex space-x-3 justify-center sm:justify-start">
+                  <button
+                    onClick={() =>
+                      setCurrentMechanic(
+                        (currentMechanic - 1 + mechanics.length) % mechanics.length
+                      )
+                    }
+                    className="px-3 sm:px-4 py-2 bg-slate-700/50 text-white border border-blue-500/30 hover:bg-slate-600/50 rounded-lg transition-all text-sm"
+                    aria-label="Previous mechanic"
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentMechanic((currentMechanic + 1) % mechanics.length)
+                    }
+                    className="px-3 sm:px-4 py-2 bg-slate-700/50 text-white border border-blue-500/30 hover:bg-slate-600/50 rounded-lg transition-all text-sm"
+                    aria-label="Next mechanic"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section - Mobile Optimized */}
+      {testimonials.length > 0 && (
+        <section className="py-12 sm:py-16 lg:py-20 bg-slate-800/30 border-y border-blue-900/30">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8 sm:mb-12">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white mb-4">
+                {t.testimonials}
+              </h2>
+              <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-blue-600 mx-auto"></div>
+            </div>
+
+            <div className="relative">
+              <div
+                className={`bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6 sm:p-8 lg:p-12 min-h-[320px] sm:min-h-[380px] flex flex-col justify-between shadow-2xl transition-all duration-500 ${
+                  fade ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                <div>
+                  <div className="flex justify-center mb-4 sm:mb-6">
+                    {[...Array(testimonials[currentTestimonial].rating)].map((_, i) => (
+                      <svg key={i} className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+                  
+                  {testimonials[currentTestimonial].image_url ? (
+                    <div className="mb-4 sm:mb-6">
+                      <img
+                        src={getStorageUrl('testimonials', testimonials[currentTestimonial].image_url)}
+                        alt="Review screenshot"
+                        className="max-w-full max-h-[250px] sm:max-h-[350px] mx-auto border border-blue-500/30 shadow-xl object-contain rounded-lg"
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : (
+                    <blockquote className="text-gray-300 text-base sm:text-lg lg:text-xl mb-4 sm:mb-6 text-center italic leading-relaxed">
+                      "{testimonials[currentTestimonial].text}"
+                    </blockquote>
+                  )}
+                </div>
+                
+                <div className="border-t border-blue-500/20 pt-4 sm:pt-6 text-center">
+                  <p className="font-bold text-lg sm:text-xl text-white">
+                    {testimonials[currentTestimonial].name}
+                  </p>
+                  {testimonials[currentTestimonial].service && (
+                    <p className="text-xs sm:text-sm text-gray-400 mt-2 uppercase tracking-wider">
+                      {testimonials[currentTestimonial].service}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {testimonials.length > 1 && (
+                <>
+                  {/* Dots */}
+                  <div className="flex justify-center mt-6 sm:mt-8 space-x-2 sm:space-x-3">
+                    {testimonials.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentTestimonial(idx)}
+                        className={`h-2 rounded-full transition-all ${
+                          idx === currentTestimonial
+                            ? "bg-blue-500 w-6 sm:w-8"
+                            : "bg-slate-700 hover:bg-slate-600 w-2"
+                        }`}
+                        aria-label={`View testimonial ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Navigation Buttons - Hidden on mobile, visible on larger screens */}
+                  <button
+                    onClick={() => setCurrentTestimonial((prev) => (prev - 1 + testimonials.length) % testimonials.length)}
+                    className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 lg:-translate-x-16 bg-slate-800/80 backdrop-blur-sm hover:bg-slate-700 text-white w-10 h-10 sm:w-12 sm:h-12 rounded-full items-center justify-center transition-all border border-blue-500/30 shadow-lg"
+                    aria-label="Previous testimonial"
+                  >
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setCurrentTestimonial((prev) => (prev + 1) % testimonials.length)}
+                    className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 lg:translate-x-16 bg-slate-800/80 backdrop-blur-sm hover:bg-slate-700 text-white w-10 h-10 sm:w-12 sm:h-12 rounded-full items-center justify-center transition-all border border-blue-500/30 shadow-lg"
+                    aria-label="Next testimonial"
+                  >
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Services Carousel - Mobile Optimized */}
+      {services.length > 0 && (
+        <section className="py-12 sm:py-16 lg:py-20 bg-slate-900/50 border-y border-blue-900/30">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8 sm:mb-12">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white mb-4">
+                {t.services}
+              </h2>
+              <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-blue-600 mx-auto"></div>
+            </div>
+
+            <div className="relative">
+              <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 overflow-hidden shadow-2xl rounded-2xl">
+                {services[currentService]?.image_url ? (
+                  <div className="relative h-64 sm:h-80 lg:h-96 overflow-hidden">
+                    <img
+                      src={getStorageUrl('services', services[currentService].image_url)}
+                      alt={services[currentService].title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent"></div>
+                  </div>
+                ) : (
+                  <div className="h-64 sm:h-80 lg:h-96 bg-slate-700/50 flex items-center justify-center">
+                    <span className="text-6xl sm:text-7xl lg:text-8xl">{services[currentService].icon || "🔧"}</span>
+                  </div>
+                )}
+                
+                <div className="p-6 sm:p-8 lg:p-12">
+                  <h3 className="text-2xl sm:text-3xl font-bold text-white mb-3 sm:mb-4">
+                    {services[currentService].title}
+                  </h3>
+                  <p className="text-sm sm:text-base lg:text-lg text-gray-300 leading-relaxed">
+                    {services[currentService].description}
+                  </p>
+                </div>
+              </div>
+
+              {services.length > 1 && (
+                <>
+                  {/* Dots */}
+                  <div className="flex justify-center mt-6 sm:mt-8 space-x-2 sm:space-x-3">
+                    {services.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentService(idx)}
+                        className={`h-2 rounded-full transition-all ${
+                          idx === currentService
+                            ? "bg-blue-500 w-6 sm:w-8"
+                            : "bg-slate-700 hover:bg-slate-600 w-2"
+                        }`}
+                        aria-label={`View service ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Navigation Buttons - Hidden on mobile */}
+                  <button
+                    onClick={() => setCurrentService((prev) => (prev - 1 + services.length) % services.length)}
+                    className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 lg:-translate-x-16 bg-slate-800/80 backdrop-blur-sm hover:bg-slate-700 text-white w-10 h-10 sm:w-12 sm:h-12 rounded-full items-center justify-center transition-all border border-blue-500/30 shadow-lg"
+                    aria-label="Previous service"
+                  >
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setCurrentService((prev) => (prev + 1) % services.length)}
+                    className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 lg:translate-x-16 bg-slate-800/80 backdrop-blur-sm hover:bg-slate-700 text-white w-10 h-10 sm:w-12 sm:h-12 rounded-full items-center justify-center transition-all border border-blue-500/30 shadow-lg"
+                    aria-label="Next service"
+                  >
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      
+
+      {/* Booking Form - Mobile Optimized */}
+      <section className="py-12 sm:py-16 lg:py-20 bg-slate-800/30 border-y border-blue-900/30" id="booking">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white mb-3 sm:mb-4">
+              {t.schedule}
+            </h2>
+            <p className="text-sm sm:text-base lg:text-lg text-gray-300">{t.scheduleSubtitle}</p>
+            <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-blue-600 mx-auto mt-4 sm:mt-6"></div>
+          </div>
+
+          <form
+            ref={formRef}
+            onSubmit={handleSubmit}
+            className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6 sm:p-8 lg:p-10 space-y-6 sm:space-y-8 shadow-2xl"
+          >
+            {/* Contact Information */}
+            <div className="space-y-4 sm:space-y-5">
+              <h3 className="text-lg sm:text-xl font-bold text-white pb-2 sm:pb-3 border-b border-blue-500/20 flex items-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {t.contactInfo}
+              </h3>
+              
+              <input
+                type="text"
+                name="name"
+                placeholder={t.fullName}
+                required
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors text-white placeholder-gray-500 text-sm sm:text-base"
+              />
+              
+              <input
+                type="tel"
+                name="phone"
+                placeholder={t.phoneNumber}
+                required
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors text-white placeholder-gray-500 text-sm sm:text-base"
+                pattern="\d{10}"
+                inputMode="numeric"
+              />
+
+              
+ <div>
+  <input
+    type="text"
+    name="address"
+    placeholder={t.serviceAddress}
+    required
+    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors text-white placeholder-gray-500 text-sm sm:text-base"
+  />
+  <p className="text-xs text-gray-400 mt-1.5 ml-1">
+    {t.addressNote}
+  </p>
+</div>
+
+              <input
+                type="text"
+                name="vehicleInfo"
+                placeholder={t.vehicle}
+                required
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors text-white placeholder-gray-500 text-sm sm:text-base"
               />
             </div>
 
-            <input type="hidden" name="date" value={selectedDate || ""} />
+            {/* Service Selection - Mobile Optimized */}
+            <div className="space-y-4 sm:space-y-5">
+              <h3 className="text-lg sm:text-xl font-bold text-white pb-2 sm:pb-3 border-b border-blue-500/20 flex items-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                {t.selectServices}
+              </h3>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                {serviceOptions.map((service) => (
+                  <label
+                    key={service.id}
+                    className={`cursor-pointer p-3 sm:p-4 rounded-lg border transition-all ${
+                      selectedServices.includes(service.id)
+                        ? "bg-blue-600/20 border-blue-500 shadow-lg shadow-blue-500/20"
+                        : "bg-slate-900/30 border-blue-500/20 hover:border-blue-500/50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedServices.includes(service.id)}
+                      onChange={() => handleServiceToggle(service.id)}
+                      className="hidden"
+                    />
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl mb-1 sm:mb-2">{service.icon}</div>
+                      <div className="text-[10px] sm:text-xs font-medium text-white leading-tight">
+                        {language === "es" ? service.nameEs : service.name}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              
+              {selectedServices.length > 0 && (
+                <div className="bg-blue-600/10 border border-blue-500/30 rounded-lg p-3 sm:p-4 flex items-center">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 mr-2 sm:mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-xs sm:text-sm text-gray-300">
+                    {t.estimatedTime}: <span className="font-semibold text-white">{duration} {t.hoursText}</span>
+                  </p>
+                </div>
+              )}
+            </div>
 
-            <select
-              name="start_time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="">🕒 Select a Time</option>
-              {timeOptions.map((t) => (
-                <option key={t} value={t}>
-                  {formatTo12Hour(t)}
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* Date & Time - Mobile Optimized */}
+            <div className="space-y-4 sm:space-y-5">
+              <h3 className="text-lg sm:text-xl font-bold text-white pb-2 sm:pb-3 border-b border-blue-500/20 flex items-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {t.scheduleTitle}
+              </h3>
 
-          {/* Additional Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2">Additional Info</h3>
-            
-            <select
-              name="returning"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
-              onChange={(e) => setIsReturning(e.target.value === "yes")}
-            >
-              <option value="">Have you booked with Mya before?</option>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
+              <div className="calendar-wrapper bg-slate-900/50 p-3 sm:p-4 border border-blue-500/30 rounded-lg">
+                <Calendar
+                  value={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
+                  onChange={(date) => {
+                    const isoDate = date.toISOString().split("T")[0];
+                    setSelectedDate(isoDate);
+                  }}
+                  tileDisabled={({ date }) => {
+                    const iso = date.toISOString().split("T")[0];
+                    return !availableDates.includes(iso);
+                  }}
+                  tileClassName={({ date }) => {
+                    const iso = date.toISOString().split("T")[0];
+                    const isSelected = selectedDate === iso;
+                    const isAvailable = availableDates.includes(iso);
 
-            {!isReturning && (
-              <input
-                type="text"
-                name="referral"
+                    return isSelected
+                      ? "selected-date-auto"
+                      : isAvailable
+                      ? "available-date-auto"
+                      : null;
+                  }}
+                  calendarType="US"
+                  className="w-full"
+                />
+              </div>
+
+              <input type="hidden" name="date" value={selectedDate || ""} />
+
+              <select
+                name="start_time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
                 required
-                placeholder="Who referred you? (Instagram handle)"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors text-white text-sm sm:text-base"
+              >
+                <option value="">{t.selectTime}</option>
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {formatTo12Hour(t)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Additional Details - Mobile Optimized */}
+            <div className="space-y-4 sm:space-y-5">
+              <h3 className="text-lg sm:text-xl font-bold text-white pb-2 sm:pb-3 border-b border-blue-500/20 flex items-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {t.additionalInfo}
+              </h3>
+
+              <textarea
+                name="notes"
+                placeholder={t.describeIssue}
+                rows="4"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-900/50 border border-blue-500/30 focus:border-blue-500 rounded-lg transition-colors resize-none text-white placeholder-gray-500 text-sm sm:text-base"
               />
-            )}
 
-            <textarea 
-              name="notes" 
-              placeholder="Nail inspo or any details" 
-              rows="3"
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200 resize-none" 
-            />
-          </div>
+              <div className="space-y-2 sm:space-y-3">
+                <label className="flex items-start space-x-2 sm:space-x-3 cursor-pointer bg-red-900/10 border border-red-500/30 p-3 sm:p-4 rounded-lg hover:bg-red-900/20 transition-colors">
+                  <input
+                    type="checkbox"
+                    name="isEmergency"
+                    className="w-4 h-4 sm:w-5 sm:h-5 mt-0.5 accent-red-500 flex-shrink-0"
+                  />
+                  <div>
+                    <span className="text-red-400 font-semibold text-xs sm:text-sm block">{t.emergencyRepair}</span>
+                    <span className="text-red-400/70 text-[10px] sm:text-xs">{t.emergencySubtext}</span>
+                  </div>
+                </label>
 
-          {/* Terms & Submit */}
-          <div className="space-y-4">
-            <label className="flex items-start space-x-3 text-sm">
-              <input type="checkbox" name="confirmPolicy" required className="mt-1 w-4 h-4 text-pink-600 border-gray-300 rounded focus:ring-pink-500" />
-              <span className="text-gray-700">I understand a $20 deposit is required to book</span>
-            </label>
+                <label className="flex items-start space-x-2 sm:space-x-3 cursor-pointer bg-blue-900/10 border border-blue-500/30 p-3 sm:p-4 rounded-lg hover:bg-blue-900/20 transition-colors">
+                  <input
+                    type="checkbox"
+                    name="veteranDiscount"
+                    checked={isVeteran}
+                    onChange={(e) => setIsVeteran(e.target.checked)}
+                    className="w-4 h-4 sm:w-5 sm:h-5 mt-0.5 accent-blue-500 flex-shrink-0"
+                  />
+                  <div>
+                    <span className="text-gray-200 font-semibold text-xs sm:text-sm block">{t.firstResponder}</span>
+                    <span className="text-gray-400 text-[10px] sm:text-xs">{t.discountSubtext}</span>
+                  </div>
+                </label>
+              </div>
+            </div>
 
+            {/* Submit Button */}
             <button
               type="submit"
-              disabled={isSubmitting}
-              className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg ${
-                isSubmitting 
-                  ? "bg-gray-400 cursor-not-allowed" 
-                  : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+              disabled={isSubmitting || selectedServices.length === 0}
+              className={`w-full py-3 sm:py-4 px-4 sm:px-6 rounded-lg font-bold transition-all text-sm sm:text-base shadow-lg ${
+                isSubmitting || selectedServices.length === 0
+                  ? "bg-slate-700 cursor-not-allowed text-gray-500"
+                  : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white hover:shadow-xl hover:shadow-blue-500/50"
               }`}
             >
               {isSubmitting ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Submitting...</span>
+                <div className="flex items-center justify-center">
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 sm:mr-3"></div>
+                  <span>{t.submitting}</span>
                 </div>
               ) : (
-                "Submit Booking Request ✨"
+                <div className="flex items-center justify-center">
+                  <span>{t.requestAppointment}</span>
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
               )}
             </button>
-          </div>
-        </form>
 
-        {/* Policies Section */}
-        <div className="bg-white/70 backdrop-blur-sm border border-white/20 mt-10 rounded-2xl p-6 shadow-lg text-center text-gray-800 max-w-2xl mx-auto">
-          <h2 className="text-2xl font-semibold text-pink-700 mb-6">📌 Policies</h2>
-
-          <div className="space-y-6 text-sm leading-relaxed">
-            <div className="text-left">
-              <h3 className="font-semibold text-base mb-2 text-gray-800">❌ No-Show / Cancellation Policy</h3>
-              <p className="text-gray-700">
-                Cancel at least 48 hours before your appointment and there's no fee – your deposit can be applied to your next visit. 
-                Last-minute cancellations or no-shows will be charged 50% of your service price.
+            {selectedServices.length === 0 && (
+              <p className="text-center text-xs sm:text-sm text-red-400 flex items-center justify-center">
+                <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                {t.selectOneService}
               </p>
+            )}
+          </form>
+        </div>
+      </section>
+
+      {/* Service Area & Payment Info - Mobile Optimized */}
+      <section className="py-12 sm:py-16 lg:py-20 bg-slate-900/50 border-t border-blue-900/30">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6 sm:p-8 lg:p-12 shadow-2xl">
+            <div className="text-center mb-6 sm:mb-8">
+              <h3 className="text-2xl sm:text-3xl font-bold text-white mb-3 sm:mb-4">
+                {t.serviceAreaPayment}
+              </h3>
+              <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-blue-600 mx-auto"></div>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
+              <div className="bg-slate-900/50 border border-blue-500/20 rounded-xl p-4 sm:p-6">
+                <div className="flex items-start space-x-3 sm:space-x-4">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 sm:w-8 sm:h-8 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-bold text-base sm:text-lg text-white mb-2">{t.clarkCounty}</p>
+                    <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
+                      {t.clarkCountyDesc}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/50 border border-blue-500/20 rounded-xl p-4 sm:p-6">
+                <div className="flex items-start space-x-3 sm:space-x-4">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-bold text-base sm:text-lg text-white mb-2">{t.outsideClark}</p>
+                    <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
+                      {t.outsideClarkDesc} <a href={`tel:${settings.phone}`} className="text-blue-400 hover:text-blue-300 font-semibold">{settings.phone}</a>
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="text-left">
-              <h3 className="font-semibold text-base mb-2 text-gray-800">⏰ Running Late?</h3>
-              <p className="text-gray-700">
-                You have a 5-minute grace period if you let me know your ETA. After that, there's a $10 late fee. 
-                If time is tight, I might need to shorten your service (simpler design, shorter length, etc.)
-              </p>
-            </div>
-
-            <div className="text-left">
-              <h3 className="font-semibold text-base mb-2 text-gray-800">✨ Squeeze-In Appointments</h3>
-              <p className="text-gray-700">
-                Appointments before/after regular hours are squeeze-ins and cost 50% more than your base nail price.
-              </p>
-            </div>
-
-            <div className="text-left">
-              <h3 className="font-semibold text-base mb-2 text-gray-800">💔 Nail Fix Policy</h3>
-              <p className="text-gray-700">
-                If a nail chips, cracks, or breaks within 5 days, I'll fix it for free. After 5 days, it's $10 per nail to repair.
-              </p>
-            </div>
-
-            <div className="text-left">
-              <h3 className="font-semibold text-base mb-2 text-gray-800">🚫 No Extra Guests</h3>
-              <p className="text-gray-700">
-                To keep the space calm and focused on your pampering experience, no extra guests allowed — unless they're also booked for a service. 
-                Thanks for understanding, queens!
-              </p>
+            <div className="mt-6 sm:mt-8 bg-slate-900/50 border border-blue-500/20 rounded-xl p-4 sm:p-6 text-center">
+              <div className="flex items-center justify-center space-x-2 sm:space-x-3 mb-2 sm:mb-3">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <p className="text-sm sm:text-base lg:text-lg">
+                  <span className="font-bold text-white">{t.payment}</span> <span className="text-gray-300">{t.paymentMethods}</span>
+                </p>
+              </div>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Location Section */}
-        <div className="mt-12 text-center">
-          <h2 className="text-2xl font-semibold mb-4 text-pink-700">📍 Address</h2>
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
-            <p className="mb-6 text-gray-700 font-medium text-lg">
-              2080 E. Flamingo Rd. Suite #106 Room 4<br />
-              Las Vegas, Nevada
-            </p>
-            <div className="rounded-xl overflow-hidden shadow-lg">
-              <iframe
-                title="Mya's Nail Studio Location"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3226.887402048895!2d-115.1218948!3d36.1136458!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80c8c6d4c4b0e1f5%3A0x1c9624dbd4a87b5b!2s2080%20E%20Flamingo%20Rd%2C%20Las%20Vegas%2C%20NV%2089119!5e0!3m2!1sen!2sus!4v1689200000000!5m2!1sen!2sus"
-                width="100%"
-                height="300"
-                style={{ border: 0 }}
-                allowFullScreen=""
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Dashboard Link */}
-        <div className="text-center mt-8">
-          <Link 
-            href="/login" 
-            className="inline-flex items-center text-pink-600 hover:text-pink-700 font-medium transition-colors duration-200"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Go to Dashboard
-          </Link>
-        </div>
+      {/* Dashboard Link */}
+      <div className="text-center py-6 sm:py-8 bg-slate-900/30">
+        <Link
+          href="/login"
+          className="inline-flex items-center text-gray-400 hover:text-blue-400 font-medium transition-colors duration-200 text-xs sm:text-sm"
+        >
+          <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {t.dashboardLogin}
+        </Link>
       </div>
 
-      {/* Custom Calendar Styles */}
+      {/* Global Styles */}
       <style jsx global>{`
         .calendar-wrapper .react-calendar {
           border: none !important;
+          background: transparent !important;
           font-family: inherit;
           width: 100%;
+          color: white;
         }
         
         .calendar-wrapper .react-calendar__tile {
-          border-radius: 8px !important;
-          border: none !important;
-          background: transparent !important;
-          padding: 12px !important;
-          transition: all 0.2s ease !important;
-          position: relative;
+          border: 1px solid rgba(59, 130, 246, 0.2) !important;
+          background: rgba(15, 23, 42, 0.5) !important;
+          padding: 8px !important;
+          transition: all 0.15s !important;
+          color: #94a3b8;
+          border-radius: 0.5rem !important;
+          font-size: 13px;
+        }
+        
+        @media (min-width: 640px) {
+          .calendar-wrapper .react-calendar__tile {
+            padding: 10px !important;
+            font-size: 14px;
+          }
         }
         
         .calendar-wrapper .react-calendar__tile:hover:enabled {
-          background: rgb(249 168 212 / 0.3) !important;
-          transform: scale(1.05);
+          background: rgba(59, 130, 246, 0.1) !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: white;
         }
         
         .calendar-wrapper .react-calendar__tile--now {
-          background: rgb(244 114 182 / 0.2) !important;
-          font-weight: bold !important;
-        }
-        
-        .calendar-wrapper .available-date {
-          background: rgb(244 114 182 / 0.4) !important;
-          color: rgb(159 18 57) !important;
+          background: rgba(59, 130, 246, 0.15) !important;
           font-weight: 600 !important;
+          color: white;
+          border-color: rgba(59, 130, 246, 0.3) !important;
         }
         
-        .calendar-wrapper .selected-date {
-          background: rgb(244 114 182) !important;
+        .calendar-wrapper .available-date-auto {
+          background: rgba(59, 130, 246, 0.2) !important;
           color: white !important;
-          font-weight: bold !important;
-          transform: scale(1.1) !important;
+          font-weight: 500 !important;
+          border: 1px solid rgba(59, 130, 246, 0.4) !important;
+        }
+        
+        .calendar-wrapper .selected-date-auto {
+          background: linear-gradient(to bottom right, #3b82f6, #2563eb) !important;
+          color: white !important;
+          font-weight: 600 !important;
+          border: 1px solid #3b82f6 !important;
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.4) !important;
         }
         
         .calendar-wrapper .react-calendar__tile:disabled {
-          background: rgb(243 244 246) !important;
-          color: rgb(156 163 175) !important;
+          background: rgba(15, 23, 42, 0.3) !important;
+          color: #475569 !important;
+          border-color: rgba(59, 130, 246, 0.1) !important;
         }
         
         .calendar-wrapper .react-calendar__navigation {
-          background: rgb(244 114 182 / 0.1) !important;
-          border-radius: 12px !important;
-          margin-bottom: 16px !important;
+          background: rgba(30, 41, 59, 0.5) !important;
+          margin-bottom: 10px !important;
+          border: 1px solid rgba(59, 130, 246, 0.2) !important;
+          border-radius: 0.5rem !important;
         }
         
         .calendar-wrapper .react-calendar__navigation button {
-          color: rgb(159 18 57) !important;
-          font-weight: 600 !important;
-          border-radius: 8px !important;
+          color: white !important;
+          font-weight: 500 !important;
+          font-size: 14px;
+        }
+        
+        @media (min-width: 640px) {
+          .calendar-wrapper .react-calendar__navigation button {
+            font-size: 16px;
+          }
         }
         
         .calendar-wrapper .react-calendar__navigation button:hover {
-          background: rgb(244 114 182 / 0.2) !important;
+          background: rgba(59, 130, 246, 0.2) !important;
         }
         
         .calendar-wrapper .react-calendar__month-view__weekdays {
           font-weight: 600 !important;
-          color: rgb(107 114 128) !important;
+          color: #94a3b8 !important;
+          font-size: 11px;
+        }
+        
+        @media (min-width: 640px) {
+          .calendar-wrapper .react-calendar__month-view__weekdays {
+            font-size: 13px;
+          }
+        }
+
+        .calendar-wrapper .react-calendar__month-view__weekdays__weekday {
+          color: white !important;
+          border-bottom: 1px solid rgba(59, 130, 246, 0.2) !important;
+          padding-bottom: 4px !important;
+        }
+        
+        @media (min-width: 640px) {
+          .calendar-wrapper .react-calendar__month-view__weekdays__weekday {
+            padding-bottom: 6px !important;
+          }
         }
       `}</style>
     </main>

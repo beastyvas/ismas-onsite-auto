@@ -1,82 +1,145 @@
-import { v4 as uuidv4 } from "uuid";
-import { supabase } from "@/utils/supabaseClient"; // Add this import
+// pages/api/book.js
+import { supabaseAdmin } from "@/utils/supabaseAdminClient";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end("Method Not Allowed");
+  if (req.method !== "POST") {
+    return res.status(405).json({ success: false, error: "Method not allowed" });
+  }
 
   try {
     const {
-      name = "",
-      instagram = "",
-      phone = "",
-      service = "",
-      artLevel = "",
-      length = "",
-      date = "",
-      start_time = "",
-      duration = 0,
-      notes = "",
-      returning = "",
-      referral = "",
-      soakoff = "",
-      pedicure = "",
-      bookingNails = "",
-      pedicureType = "",
+      id,
+      name,
+      phone,
+      address,
+      vehicle_info,
+      services,
+      date,
+      start_time,
+      notes,
+      duration,
+      is_emergency,
+      veteran_discount,
     } = req.body;
 
-    // Calculate end time for conflict checking
-    const startHour = parseInt(start_time.split(":")[0]);
-    const endHour = startHour + duration;
-    const end_time = `${endHour.toString().padStart(2, "0")}:00`;
+    console.log('📥 Received booking request:', { name, phone, date, start_time, services });
 
-    // Check for double booking conflicts ONLY
-    const { data: conflictCheck, error: conflictError } = await supabase
-      .from("bookings")
-      .select("start_time, duration")
-      .eq("date", date)
-      .gte("start_time", start_time)
-      .lt("start_time", end_time);
-
-    if (conflictError) {
-      console.error("Conflict check error:", conflictError);
-      return res.status(500).json({ success: false, error: "Failed to check availability" });
-    }
-
-    if (conflictCheck && conflictCheck.length > 0) {
+    // Validate required fields
+    if (!name || !phone || !address || !vehicle_info || !services || !date || !start_time) {
+      console.error('❌ Missing required fields');
       return res.status(400).json({ 
         success: false, 
-        error: "This time slot is no longer available. Please select a different time." 
+        error: "Missing required fields" 
       });
     }
 
-    const bookingId = uuidv4();
+    console.log('✅ Validation passed, inserting into database...');
 
-    // Return success without inserting - webhook will handle the insertion
-    return res.status(200).json({
-      success: true,
-      bookingId,
-      bookingMetadata: {
-        name,
-        instagram,
-        phone,
-        service,
-        artLevel,
-        length,
-        date,
-        start_time,
-        duration,
-        notes,
-        returning,
-        referral,
-        soakoff,
-        pedicure,
-        pedicure_type: pedicureType,
-        booking_nails: bookingNails,
-      },
+    // Calculate end_time
+    const startHour = parseInt(start_time.split(':')[0]);
+    const endHour = startHour + duration;
+    const end_time = `${String(endHour).padStart(2, '0')}:00`;
+
+    // Convert services string to array if needed
+    let servicesArray = services;
+    if (typeof services === 'string') {
+      // Split by comma and trim whitespace
+      servicesArray = services.split(',').map(s => s.trim());
+    }
+
+    console.log('📦 Prepared data:', { vehicle_info, servicesArray });
+
+    // Insert booking into Supabase
+    const { data, error } = await supabaseAdmin.from("bookings").insert({
+      id,
+      name,
+      phone,
+      address,
+      vehicle: vehicle_info, // Match the 'vehicle' column name
+      services: servicesArray, // PostgreSQL array format
+      date,
+      start_time,
+      end_time,
+      notes,
+      duration,
+      is_emergency,
+      veteran_discount,
+    }).select();
+
+    if (error) {
+      console.error("❌ Supabase insert error:", error);
+      return res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        details: error 
+      });
+    }
+
+    console.log('✅ Booking inserted successfully:', data[0]?.id);
+
+    // Get owner's phone number from settings
+     const { data: settings, error: settingsError } = await supabaseAdmin
+      .from("settings")
+      .select("sms_number, phone")
+      .single();
+
+    if (settingsError) {
+      console.error("Error fetching settings:", settingsError);
+    }
+
+    const ownerPhone = settings?.sms_number || settings?.phone || process.env.OWNER_PHONE || "+17028017210";
+    const textbeltKey = process.env.TEXTBELT_API_KEY;
+
+    // Send SMS notification to Isma (the owner)
+    if (ownerPhone && textbeltKey) {
+      try {
+        const smsMessage = `🚗 NEW BOOKING ${is_emergency ? '🚨 EMERGENCY' : ''}
+
+Customer: ${name}
+Phone: ${phone}
+Vehicle: ${vehicle_info}
+Services: ${Array.isArray(servicesArray) ? servicesArray.join(', ') : servicesArray}
+Date: ${date} at ${start_time}
+Address: ${address}
+${veteran_discount ? '🎖️ Veteran Discount' : ''}
+${notes ? `Notes: ${notes}` : ''}`;
+
+        // Use TextBelt directly
+        const textbeltResponse = await fetch('https://textbelt.com/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: ownerPhone,
+            message: smsMessage,
+            key: textbeltKey,
+          }),
+        });
+
+        const textbeltResult = await textbeltResponse.json();
+        
+        if (!textbeltResult.success) {
+          console.error('Failed to send SMS notification:', textbeltResult.error);
+        } else {
+          console.log('✅ SMS sent successfully. Quota remaining:', textbeltResult.quotaRemaining);
+        }
+      } catch (smsError) {
+        console.error('SMS notification error:', smsError);
+      }
+    } else {
+      console.log('⚠️ SMS not sent - missing phone or API key');
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      data: data[0],
+      message: "Booking created successfully" 
     });
 
   } catch (err) {
-    console.error("Unexpected error in book.js:", err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    console.error("Booking error:", err);
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message || "Internal server error"
+    });
   }
 }
