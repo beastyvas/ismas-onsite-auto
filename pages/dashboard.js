@@ -62,14 +62,22 @@ export default function Dashboard() {
   });
 
   // Services
-  const [services, setServices] = useState([]);
- const [newService, setNewService] = useState({
+const [services, setServices] = useState([]);
+const [categories, setCategories] = useState([]);
+const [servicesByCategory, setServicesByCategory] = useState({});
+const [newCategory, setNewCategory] = useState({
+  name: "",
+  nameEs: "",
+  icon: "",
+});
+const [newService, setNewService] = useState({
   name: "",
   nameEs: "",
   description: "",
   price: "",
   icon: "",
-  duration: 1,  // ← ADD THIS
+  duration: 1,
+  categoryId: "",
   imageFile: null,
   imagePreview: null,
 });
@@ -251,25 +259,33 @@ const [logoPreview, setLogoPreview] = useState(null); // ← ADD THIS
       });
     }
 
-    // ---------- 4) SERVICES ----------
-    const { data: servicesData, error: servicesError } = await supabase
-      .from("services")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // ---------- 4) SERVICES & CATEGORIES ----------
+const [
+  { data: servicesData, error: servicesError },
+  { data: categoriesData, error: categoriesError }
+] = await Promise.all([
+  supabase.from("services").select("*").order("created_at", { ascending: false }),
+  supabase.from("service_categories").select("*").order("display_order", { ascending: true })
+]);
 
-    if (!servicesError && servicesData) {
-      const formattedServices = servicesData.map((s) => ({
-        id: s.id,
-        title: s.title,
-        title_es: s.title_es,
-        description: s.description,
-        price: s.price,
-        icon: s.icon,
-        duration: s.duration,
-        image_url: s.image_url,
-      }));
-      setServices(formattedServices);
-    }
+if (!servicesError && servicesData) {
+  const formattedServices = servicesData.map((s) => ({
+    id: s.id,
+    title: s.title,
+    title_es: s.title_es,
+    description: s.description,
+    price: s.price,
+    icon: s.icon,
+    duration: s.duration,
+    image_url: s.image_url,
+    category_id: s.category_id, // ← ADD THIS
+  }));
+  setServices(formattedServices);
+}
+
+if (!categoriesError && categoriesData) {
+  setCategories(categoriesData);
+}
 
     // ---------- 5) TESTIMONIALS ----------
     const { data: testimonialsData, error: testimonialsError } = await supabase
@@ -942,7 +958,7 @@ const past = filteredAppointments.filter(
       }
     }
 
-   const { data, error } = await supabase
+  const { data, error } = await supabase
   .from("services")
   .insert({
     name: newService.name,
@@ -951,7 +967,8 @@ const past = filteredAppointments.filter(
     description: newService.description,
     price: newService.price,
     icon: newService.icon || "🔧",
-    duration: newService.duration || 1,  // ← ADD THIS
+    duration: newService.duration || 1,
+    category_id: newService.categoryId, // ← ADD THIS LINE
     image_url: imagePath,
   })
   .select();
@@ -973,13 +990,14 @@ const formattedService = {
 };
 
     setServices((prev) => [formattedService, ...prev]);
-    setNewService({ 
+   setNewService({ 
   name: "", 
   nameEs: "", 
   description: "", 
   price: "",
   icon: "",
-  duration: 1,  // ← ADD THIS
+  duration: 1,
+  categoryId: "", // ← ADD THIS LINE
   imageFile: null,
   imagePreview: null,
 });
@@ -1894,6 +1912,144 @@ async function handleSaveSettings(e) {
                 </p>
               </div>
             </div>
+{/* CATEGORY MANAGEMENT */}
+<div className="bg-zinc-950/70 border border-zinc-800 rounded-xl px-4 py-4 space-y-4">
+  <h3 className="text-sm font-semibold text-zinc-50">Service Categories</h3>
+  
+  {/* Add Category Form */}
+  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+    <div>
+      <label className="block text-[11px] text-zinc-400 mb-1">Category Name</label>
+      <input
+        type="text"
+        value={newCategory.name}
+        onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))}
+        placeholder="e.g. Engine"
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100"
+      />
+    </div>
+    <div>
+      <label className="block text-[11px] text-zinc-400 mb-1">Spanish Name</label>
+      <input
+        type="text"
+        value={newCategory.nameEs}
+        onChange={(e) => setNewCategory(prev => ({ ...prev, nameEs: e.target.value }))}
+        placeholder="e.g. Motor"
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100"
+      />
+    </div>
+    <div>
+      <label className="block text-[11px] text-zinc-400 mb-1">Icon</label>
+      <input
+        type="text"
+        value={newCategory.icon}
+        onChange={(e) => setNewCategory(prev => ({ ...prev, icon: e.target.value }))}
+        placeholder="🔧"
+        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100"
+      />
+    </div>
+    <button
+      type="button"
+      onClick={async () => {
+        if (!newCategory.name.trim()) return;
+        
+        const { data, error } = await supabase
+          .from("service_categories")
+          .insert({
+            name: newCategory.name,
+            name_es: newCategory.nameEs,
+            icon: newCategory.icon || "🔧",
+          })
+          .select();
+        
+        if (!error && data) {
+          setCategories(prev => [...prev, data[0]]);
+          setNewCategory({ name: "", nameEs: "", icon: "" });
+        }
+      }}
+      className="px-4 py-1.5 rounded-lg bg-emerald-600 text-xs font-medium text-white hover:bg-emerald-500"
+    >
+      Add Category
+    </button>
+  </div>
+
+
+
+  {/* List Categories */}
+  <div className="flex flex-wrap gap-2">
+    {categories.map(cat => (
+      <div key={cat.id} className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5">
+        <span className="text-base">{cat.icon}</span>
+        <span className="text-xs text-zinc-200">{cat.name}</span>
+        <button
+          type="button"
+          onClick={async () => {
+            await supabase.from("service_categories").delete().eq("id", cat.id);
+            setCategories(prev => prev.filter(c => c.id !== cat.id));
+          }}
+          className="text-[10px] text-red-400 hover:text-red-300 ml-1"
+        >
+          ✕
+        </button>
+      </div>
+    ))}
+  </div>
+</div>
+{/* ← INSERT THE BULK ASSIGNMENT TOOL RIGHT HERE ↓ */}
+
+{/* BULK ASSIGN CATEGORIES */}
+<div className="bg-amber-950/20 border border-amber-700/40 rounded-xl px-4 py-4 space-y-4">
+  <div className="flex items-center justify-between">
+    <h3 className="text-sm font-semibold text-amber-200">
+      ⚡ Quick Assignment Tool
+    </h3>
+    <p className="text-xs text-amber-400">
+      Assign categories to existing services
+    </p>
+  </div>
+
+  <div className="max-h-96 overflow-y-auto space-y-2 pr-2">
+    {services.filter(s => !s.category_id).map(service => (
+      <div key={service.id} className="flex items-center gap-3 bg-zinc-900/60 border border-zinc-700 rounded-lg p-3">
+        <span className="text-xl">{service.icon}</span>
+        <span className="text-xs text-zinc-200 flex-1">{service.title}</span>
+        <select
+          onChange={async (e) => {
+            const categoryId = e.target.value;
+            if (!categoryId) return;
+            
+            const { error } = await supabase
+              .from("services")
+              .update({ category_id: categoryId })
+              .eq("id", service.id);
+            
+            if (!error) {
+              setServices(prev => prev.map(s => 
+                s.id === service.id ? { ...s, category_id: categoryId } : s
+              ));
+            }
+          }}
+          className="text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200"
+        >
+          <option value="">Assign to...</option>
+          {categories.map(cat => (
+            <option key={cat.id} value={cat.id}>
+              {cat.icon} {cat.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    ))}
+    
+    {services.filter(s => !s.category_id).length === 0 && (
+      <p className="text-center text-xs text-zinc-500 py-4">
+        ✅ All services have been assigned to categories!
+      </p>
+    )}
+  </div>
+</div>
+
+{/* ← BULK ASSIGNMENT TOOL ENDS HERE */}
 
             {/* Add service form */}
             <form
@@ -1918,6 +2074,29 @@ async function handleSaveSettings(e) {
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500"
                   />
                 </div>
+                <div>
+  <label className="block text-[11px] text-zinc-400 mb-1">
+    Category
+  </label>
+  <select
+    value={newService.categoryId}
+    onChange={(e) =>
+      setNewService((prev) => ({
+        ...prev,
+        categoryId: e.target.value,
+      }))
+    }
+    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100"
+    required
+  >
+    <option value="">Select a category...</option>
+    {categories.map(cat => (
+      <option key={cat.id} value={cat.id}>
+        {cat.icon} {cat.name}
+      </option>
+    ))}
+  </select>
+</div>
                 <div>
                   <label className="block text-[11px] text-zinc-400 mb-1">
                     Service Name (Spanish)

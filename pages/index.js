@@ -48,12 +48,15 @@ export default function Home() {
   const [mechanics, setMechanics] = useState([]);
   const [currentMechanic, setCurrentMechanic] = useState(0);
   const [serviceOptions, setServiceOptions] = useState([]);
+  const [categories, setCategories] = useState([]); // ← ADD THIS
+const [openCategory, setOpenCategory] = useState(null); // ← ADD THIS
 
   // Memoized storage URL helper
   const getStorageUrl = useCallback((bucket, path) => {
     if (!path) return null;
     return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
   }, []);
+
 
   // Fetch all data on mount
   useEffect(() => {
@@ -75,19 +78,30 @@ export default function Home() {
         ]);
 
         // Process services
-        if (servicesData?.length > 0) {
-          const formattedOptions = servicesData.map((service) => ({
-            id: service.id,
-            name: service.title,
-            nameEs: service.title_es || service.title,
-            duration: service.duration || 1,
-            icon: service.icon || "🔧",
-            price: service.price,
-          }));
-          setServiceOptions(formattedOptions);
-          setServices(servicesData);
-        }
+       // Process services & categories
+if (servicesData?.length > 0) {
+  // Fetch categories
+  const { data: categoriesData } = await supabase
+    .from("service_categories")
+    .select("*")
+    .order("display_order", { ascending: true });
+  
+  if (categoriesData) {
+    setCategories(categoriesData);
+  }
 
+  const formattedOptions = servicesData.map((service) => ({
+    id: service.id,
+    name: service.title,
+    nameEs: service.title_es || service.title,
+    duration: service.duration || 1,
+    icon: service.icon || "🔧",
+    price: service.price,
+    categoryId: service.category_id, // ← ADD THIS LINE
+  }));
+  setServiceOptions(formattedOptions);
+  setServices(servicesData);
+}
         // Process settings
         if (settingsData) {
           setSettings({
@@ -948,31 +962,105 @@ export default function Home() {
                 {t.selectServices}
               </h3>
               
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                {serviceOptions.map((service) => (
-                  <label
-                    key={service.id}
-                    className={`cursor-pointer p-3 sm:p-4 rounded-lg border transition-all ${
-                      selectedServices.includes(service.id)
-                        ? "bg-blue-600/20 border-blue-500 shadow-lg shadow-blue-500/20"
-                        : "bg-slate-900/30 border-blue-500/20 hover:border-blue-500/50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedServices.includes(service.id)}
-                      onChange={() => handleServiceToggle(service.id)}
-                      className="hidden"
-                    />
-                    <div className="text-center">
-                      <div className="text-xl sm:text-2xl mb-1 sm:mb-2">{service.icon}</div>
-                      <div className="text-[10px] sm:text-xs font-medium text-white leading-tight">
-                        {language === "es" ? service.nameEs : service.name}
-                      </div>
-                    </div>
-                  </label>
-                ))}
+              {/* Service Selection - Accordion Style */}
+<div className="space-y-2">
+  {categories.map((category) => {
+    const categoryServices = serviceOptions.filter(s => s.categoryId === category.id);
+    if (categoryServices.length === 0) return null;
+    
+    const isOpen = openCategory === category.id;
+    
+    return (
+      <div key={category.id} className="bg-slate-900/30 border border-blue-500/20 rounded-lg overflow-hidden">
+        {/* Category Header */}
+        <button
+          type="button"
+          onClick={() => setOpenCategory(isOpen ? null : category.id)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-900/50 transition-colors"
+        >
+          <div className="flex items-center space-x-3">
+            <span className="text-2xl">{category.icon}</span>
+            <span className="text-sm font-semibold text-white">
+              {language === "es" ? category.name_es : category.name}
+            </span>
+            <span className="text-xs text-gray-400">
+              ({categoryServices.length})
+            </span>
+          </div>
+          <svg 
+            className={`w-5 h-5 text-blue-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {/* Category Services */}
+        {isOpen && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 border-t border-blue-500/20">
+            {categoryServices.map((service) => (
+              <label
+                key={service.id}
+                className={`cursor-pointer p-3 sm:p-4 rounded-lg border transition-all ${
+                  selectedServices.includes(service.id)
+                    ? "bg-blue-600/20 border-blue-500 shadow-lg shadow-blue-500/20"
+                    : "bg-slate-900/30 border-blue-500/20 hover:border-blue-500/50"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedServices.includes(service.id)}
+                  onChange={() => handleServiceToggle(service.id)}
+                  className="hidden"
+                />
+                <div className="text-center">
+                  <div className="text-xl sm:text-2xl mb-1 sm:mb-2">{service.icon}</div>
+                  <div className="text-[10px] sm:text-xs font-medium text-white leading-tight">
+                    {language === "es" ? service.nameEs : service.name}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  })}
+  
+  {/* Uncategorized services (if any) */}
+  {serviceOptions.filter(s => !s.categoryId).length > 0 && (
+    <div className="bg-slate-900/30 border border-blue-500/20 rounded-lg p-3">
+      <p className="text-xs text-gray-400 mb-2">Other Services:</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {serviceOptions.filter(s => !s.categoryId).map((service) => (
+          <label
+            key={service.id}
+            className={`cursor-pointer p-3 rounded-lg border transition-all ${
+              selectedServices.includes(service.id)
+                ? "bg-blue-600/20 border-blue-500"
+                : "bg-slate-900/30 border-blue-500/20"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={selectedServices.includes(service.id)}
+              onChange={() => handleServiceToggle(service.id)}
+              className="hidden"
+            />
+            <div className="text-center">
+              <div className="text-xl mb-1">{service.icon}</div>
+              <div className="text-[10px] font-medium text-white">
+                {language === "es" ? service.nameEs : service.name}
               </div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
               
               {selectedServices.length > 0 && (
                 <div className="bg-blue-600/10 border border-blue-500/30 rounded-lg p-3 sm:p-4 flex items-center">
