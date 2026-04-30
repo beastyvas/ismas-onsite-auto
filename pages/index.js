@@ -557,7 +557,7 @@ export default function Home() {
             </span>
           </div>
 
-          <h1 className="text-[14vw] sm:text-7xl lg:text-8xl xl:text-9xl font-black uppercase leading-[0.88] tracking-tight mb-6">
+          <h1 className={`${language === "es" ? "text-[9vw]" : "text-[14vw]"} sm:text-7xl lg:text-8xl xl:text-9xl font-black uppercase leading-[0.88] tracking-tight mb-6`}>
             <span className="block text-gray-200">{language === "es" ? "REPARACIÓN" : "MOBILE"}</span>
             <span className="block">
               <span className="text-glow-blue">{language === "es" ? "MÓVIL " : "AUTO "}</span>
