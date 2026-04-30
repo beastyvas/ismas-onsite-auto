@@ -558,12 +558,12 @@ export default function Home() {
           </div>
 
           <h1 className="text-[14vw] sm:text-7xl lg:text-8xl xl:text-9xl font-black uppercase leading-[0.88] tracking-tight mb-6">
-            <span className="block text-gray-200">MOBILE</span>
+            <span className="block text-gray-200">{language === "es" ? "REPARACIÓN" : "MOBILE"}</span>
             <span className="block">
-              <span className="text-glow-blue">AUTO </span>
-              <span className="text-glow-red">REPAIR</span>
+              <span className="text-glow-blue">{language === "es" ? "MÓVIL " : "AUTO "}</span>
+              <span className="text-glow-red">{language === "es" ? "DE AUTOS" : "REPAIR"}</span>
             </span>
-            <span className="block text-gray-300">DONE RIGHT.</span>
+            <span className="block text-gray-300">{language === "es" ? "HECHA BIEN." : "DONE RIGHT."}</span>
           </h1>
 
           <p className="text-gray-400 text-base sm:text-lg mb-10 max-w-lg leading-relaxed">
@@ -621,10 +621,12 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20">
           <div className="mb-12">
             <h2 className="text-4xl sm:text-5xl font-black uppercase leading-none text-gray-200">
-              BUILT FOR <span className="text-glow-blue">PERFORMANCE.</span>
+              {language === "es" ? "HECHO PARA EL " : "BUILT FOR "}
+              <span className="text-glow-blue">{language === "es" ? "RENDIMIENTO." : "PERFORMANCE."}</span>
             </h2>
             <h2 className="text-4xl sm:text-5xl font-black uppercase leading-none text-gray-200 mt-1">
-              ENGINEERED FOR <span className="text-glow-red">TRUST.</span>
+              {language === "es" ? "DISEÑADO PARA LA " : "ENGINEERED FOR "}
+              <span className="text-glow-red">{language === "es" ? "CONFIANZA." : "TRUST."}</span>
             </h2>
             <p className="text-gray-500 mt-5 max-w-lg text-sm leading-relaxed">
               {language === "es"
