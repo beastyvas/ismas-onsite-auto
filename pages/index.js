@@ -557,14 +557,23 @@ export default function Home() {
             </span>
           </div>
 
-          <h1 className={`${language === "es" ? "text-[9vw]" : "text-[14vw]"} sm:text-7xl lg:text-8xl xl:text-9xl font-black uppercase leading-[0.88] tracking-tight mb-6`}>
-            <span className="block text-gray-200">{language === "es" ? "REPARACIÓN" : "MOBILE"}</span>
-            <span className="block">
-              <span className="text-glow-blue">{language === "es" ? "MÓVIL " : "AUTO "}</span>
-              <span className="text-glow-red">{language === "es" ? "DE AUTOS" : "REPAIR"}</span>
-            </span>
-            <span className="block text-gray-300">{language === "es" ? "HECHA BIEN." : "DONE RIGHT."}</span>
-          </h1>
+          {language === "es" ? (
+            <h1 className="text-[12vw] sm:text-7xl lg:text-8xl xl:text-9xl font-black uppercase leading-[0.88] tracking-tight mb-6">
+              <span className="block text-gray-200">REPARACIÓN</span>
+              <span className="block text-glow-blue">MÓVIL</span>
+              <span className="block text-glow-red">DE AUTOS</span>
+              <span className="block text-gray-300">HECHA BIEN.</span>
+            </h1>
+          ) : (
+            <h1 className="text-[14vw] sm:text-7xl lg:text-8xl xl:text-9xl font-black uppercase leading-[0.88] tracking-tight mb-6">
+              <span className="block text-gray-200">MOBILE</span>
+              <span className="block">
+                <span className="text-glow-blue">AUTO </span>
+                <span className="text-glow-red">REPAIR</span>
+              </span>
+              <span className="block text-gray-300">DONE RIGHT.</span>
+            </h1>
+          )}
 
           <p className="text-gray-400 text-base sm:text-lg mb-10 max-w-lg leading-relaxed">
             {t.subtitle}
