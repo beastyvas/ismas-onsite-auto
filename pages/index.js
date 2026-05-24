@@ -37,6 +37,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openCategories, setOpenCategories] = useState(new Set());
   const [showAllServices, setShowAllServices] = useState(false);
+  const squareEnabled = process.env.NEXT_PUBLIC_SQUARE_ENABLED === 'true';
   const squareCardRef = useRef(null);
   const [squareReady, setSquareReady] = useState(false);
 
@@ -262,7 +263,7 @@ export default function Home() {
   }, []);
 
   const initSquare = useCallback(async () => {
-    if (squareCardRef.current || !window.Square) return;
+    if (!squareEnabled || squareCardRef.current || !window.Square) return;
     try {
       const payments = window.Square.payments(
         process.env.NEXT_PUBLIC_SQUARE_APP_ID,
@@ -316,21 +317,23 @@ export default function Home() {
 
     try {
       // Tokenize card and charge $50 deposit before saving booking
-      if (!squareCardRef.current) throw new Error("Payment form not ready. Please wait a moment and try again.");
-      const tokenResult = await squareCardRef.current.tokenize();
-      if (tokenResult.status !== 'OK') {
-        throw new Error(tokenResult.errors?.[0]?.message || 'Card error. Please check your card details.');
+      if (squareEnabled) {
+        if (!squareCardRef.current) throw new Error("Payment form not ready. Please wait a moment and try again.");
+        const tokenResult = await squareCardRef.current.tokenize();
+        if (tokenResult.status !== 'OK') {
+          throw new Error(tokenResult.errors?.[0]?.message || 'Card error. Please check your card details.');
+        }
+
+        const paymentRes = await fetch("/api/create-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceId: tokenResult.token, bookingId, customerName }),
+        });
+        const paymentJson = await paymentRes.json();
+        if (!paymentRes.ok || !paymentJson.success) throw new Error(paymentJson.error || "Payment failed");
+
+        payload.square_payment_id = paymentJson.paymentId;
       }
-
-      const paymentRes = await fetch("/api/create-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId: tokenResult.token, bookingId, customerName }),
-      });
-      const paymentJson = await paymentRes.json();
-      if (!paymentRes.ok || !paymentJson.success) throw new Error(paymentJson.error || "Payment failed");
-
-      payload.square_payment_id = paymentJson.paymentId;
 
       const res = await fetch("/api/book", {
         method: "POST",
@@ -476,15 +479,17 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
-      <Script
-        src={
-          process.env.NEXT_PUBLIC_SQUARE_ENVIRONMENT === 'production'
-            ? 'https://web.squarecdn.com/v1/square.js'
-            : 'https://sandbox.web.squarecdn.com/v1/square.js'
-        }
-        strategy="lazyOnload"
-        onLoad={initSquare}
-      />
+      {squareEnabled && (
+        <Script
+          src={
+            process.env.NEXT_PUBLIC_SQUARE_ENVIRONMENT === 'production'
+              ? 'https://web.squarecdn.com/v1/square.js'
+              : 'https://sandbox.web.squarecdn.com/v1/square.js'
+          }
+          strategy="lazyOnload"
+          onLoad={initSquare}
+        />
+      )}
       <Toaster position="bottom-center" />
 
       {/* Promo Banner */}
@@ -910,18 +915,20 @@ export default function Home() {
             <p className="text-gray-500 text-sm">{t.scheduleSubtitle}</p>
           </div>
 
-          {/* Deposit notice */}
-          <div className="flex items-start gap-3 bg-blue-950/20 border border-blue-500/20 rounded-xl px-4 py-3 mb-6">
-            <span className="text-blue-400 text-base mt-0.5">🔒</span>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              <span className="text-blue-400 font-semibold">
-                {language === "es" ? "Depósito de $50 requerido" : "$50 deposit required"}
-              </span>{" "}
-              {language === "es"
-                ? "para asegurar tu cita. Se cobra hoy y se aplica directamente a tu factura final."
-                : "to secure your booking — charged today, applied to your final bill when the job is done."}
-            </p>
-          </div>
+          {/* Deposit notice — only shown when Square is active */}
+          {squareEnabled && (
+            <div className="flex items-start gap-3 bg-blue-950/20 border border-blue-500/20 rounded-xl px-4 py-3 mb-6">
+              <span className="text-blue-400 text-base mt-0.5">🔒</span>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                <span className="text-blue-400 font-semibold">
+                  {language === "es" ? "Depósito de $50 requerido" : "$50 deposit required"}
+                </span>{" "}
+                {language === "es"
+                  ? "para asegurar tu cita. Se cobra hoy y se aplica directamente a tu factura final."
+                  : "to secure your booking — charged today, applied to your final bill when the job is done."}
+              </p>
+            </div>
+          )}
 
           <form
             ref={formRef}
@@ -1173,7 +1180,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Deposit Payment */}
+            {/* Deposit Payment — only shown when Square is active */}
+            {squareEnabled && (
             <div className="border border-blue-500/20 rounded-xl p-5 bg-blue-950/20 space-y-4">
               <div className="flex items-start justify-between">
                 <div>
@@ -1205,13 +1213,14 @@ export default function Home() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Submit */}
             <button
               type="submit"
-              disabled={isSubmitting || selectedServices.length === 0 || !squareReady}
+              disabled={isSubmitting || selectedServices.length === 0 || (squareEnabled && !squareReady)}
               className={`w-full py-4 px-6 rounded-xl font-black tracking-widest uppercase transition-colors text-sm ${
-                isSubmitting || selectedServices.length === 0 || !squareReady
+                isSubmitting || selectedServices.length === 0 || (squareEnabled && !squareReady)
                   ? "bg-white/[0.04] cursor-not-allowed text-gray-600 border border-white/[0.06]"
                   : "bg-blue-600 hover:bg-blue-500 text-white"
               }`}
@@ -1219,11 +1228,15 @@ export default function Home() {
               {isSubmitting ? (
                 <div className="flex items-center justify-center gap-3">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  {language === "es" ? "Procesando pago…" : "Processing payment…"}
+                  {squareEnabled
+                    ? (language === "es" ? "Procesando pago…" : "Processing payment…")
+                    : (language === "es" ? "Enviando…" : "Submitting…")}
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  {language === "es" ? "Pagar $50 y Reservar" : "Pay $50 Deposit & Book"}
+                  {squareEnabled
+                    ? (language === "es" ? "Pagar $50 y Reservar" : "Pay $50 Deposit & Book")
+                    : (language === "es" ? "Solicitar Cita" : "Request Appointment")}
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
