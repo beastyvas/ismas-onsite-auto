@@ -910,6 +910,19 @@ export default function Home() {
             <p className="text-gray-500 text-sm">{t.scheduleSubtitle}</p>
           </div>
 
+          {/* Deposit notice */}
+          <div className="flex items-start gap-3 bg-blue-950/20 border border-blue-500/20 rounded-xl px-4 py-3 mb-6">
+            <span className="text-blue-400 text-base mt-0.5">🔒</span>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              <span className="text-blue-400 font-semibold">
+                {language === "es" ? "Depósito de $50 requerido" : "$50 deposit required"}
+              </span>{" "}
+              {language === "es"
+                ? "para asegurar tu cita. Se cobra hoy y se aplica directamente a tu factura final."
+                : "to secure your booking — charged today, applied to your final bill when the job is done."}
+            </p>
+          </div>
+
           <form
             ref={formRef}
             onSubmit={handleSubmit}

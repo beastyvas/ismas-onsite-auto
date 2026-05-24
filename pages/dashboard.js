@@ -202,6 +202,7 @@ const [logoPreview, setLogoPreview] = useState(null); // ← ADD THIS
         veteranDiscount: booking.veteran_discount,
         duration: booking.duration,
         paid: booking.paid,
+        squarePaymentId: booking.square_payment_id,
         distanceMiles: booking.distance_miles,
 
         // Persisted history
@@ -1314,7 +1315,7 @@ async function handleSaveSettings(e) {
         {activeTab === "overview" && (
           <section className="space-y-6">
             {/* Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 shadow-lg shadow-black/40">
                 <p className="text-xs text-zinc-400 mb-1">Today&apos;s Jobs</p>
                 <p className="text-3xl font-semibold text-zinc-50">
@@ -1352,6 +1353,16 @@ async function handleSaveSettings(e) {
                 </p>
                 <p className="text-[11px] text-zinc-500 mt-2">
                   Average from {reviews.length || 0} reviews.
+                </p>
+              </div>
+
+              <div className="bg-emerald-950/40 border border-emerald-700/40 rounded-2xl p-4 shadow-lg shadow-black/40">
+                <p className="text-xs text-emerald-400 mb-1">Deposits</p>
+                <p className="text-3xl font-semibold text-emerald-300">
+                  ${appointments.filter(a => a.paid).length * 50}
+                </p>
+                <p className="text-[11px] text-emerald-700 mt-2">
+                  {appointments.filter(a => a.paid).length} booking{appointments.filter(a => a.paid).length !== 1 ? 's' : ''} collected
                 </p>
               </div>
             </div>
@@ -1613,6 +1624,22 @@ async function handleSaveSettings(e) {
                       >
                         {a.status.toUpperCase()}
                       </span>
+
+                      {/* Deposit badge */}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        a.paid
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      }`}>
+                        {a.paid ? '✓ $50 Deposit Paid' : '⏳ Deposit Pending'}
+                      </span>
+
+                      {a.squarePaymentId && (
+                        <p className="text-[10px] text-zinc-600 font-mono">
+                          #{a.squarePaymentId.slice(-8)}
+                        </p>
+                      )}
+
 {/* UPCOMING BUTTONS ONLY */}
 {apptTab === "upcoming" && (
   <div className="flex flex-wrap gap-1 mt-2 justify-end">
@@ -1645,6 +1672,16 @@ async function handleSaveSettings(e) {
         className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
       >
         Mark Completed
+      </button>
+    )}
+
+    {/* Mark Deposit Paid - manual override for cash/phone payments */}
+    {!a.paid && (
+      <button
+        onClick={() => updatePaidStatus(a.id, true)}
+        className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/60"
+      >
+        Mark Deposit Paid
       </button>
     )}
 
