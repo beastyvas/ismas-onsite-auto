@@ -20,6 +20,7 @@ export default async function handler(req, res) {
       duration,
       is_emergency,
       veteran_discount,
+      square_payment_id,
     } = req.body;
 
     console.log('📥 Received booking request:', { name, phone, date, start_time, services });
@@ -55,8 +56,8 @@ export default async function handler(req, res) {
       name,
       phone,
       address,
-      vehicle: vehicle_info, // Match the 'vehicle' column name
-      services: servicesArray, // PostgreSQL array format
+      vehicle: vehicle_info,
+      services: servicesArray,
       date,
       start_time,
       end_time,
@@ -64,6 +65,7 @@ export default async function handler(req, res) {
       duration,
       is_emergency,
       veteran_discount,
+      ...(square_payment_id && { square_payment_id, paid: true }),
     }).select();
 
     if (error) {
