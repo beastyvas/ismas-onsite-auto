@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       duration,
       is_emergency,
       veteran_discount,
-      status: 'pending_payment',
+      status: 'pending',
       paid: false,
     });
 
