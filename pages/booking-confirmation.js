@@ -32,7 +32,7 @@ export default function BookingConfirmation() {
         setError('Something went wrong. Please call us at (702) 801-7210.');
         setStatus('error');
       });
-  }, [router.isReady, bookingId, transactionId]);
+  }, [router.isReady, bookingId, orderId]);
 
   if (status === 'loading') {
     return (
