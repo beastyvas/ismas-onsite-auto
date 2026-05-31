@@ -1047,6 +1047,7 @@ const handleSubmit = async (e) => {
               <div className="calendar-wrapper bg-black/40 p-4 border border-white/[0.08] rounded-xl">
                 <Calendar
                   value={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
+                  minDate={new Date()}
                   onChange={(date) => {
                     const isoDate = date.toISOString().split("T")[0];
                     setSelectedDate(isoDate);
