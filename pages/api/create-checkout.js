@@ -81,7 +81,7 @@ export default async function handler(req, res) {
         lineItems: [{
           name: "Booking Deposit — Isma's OnSite Auto Repair",
           quantity: '1',
-          basePriceMoney: { amount: 100n, currency: 'USD' },
+          basePriceMoney: { amount: 5000n, currency: 'USD' },
           note: `${name} · ${servicesArray.join(', ')}`,
         }],
         referenceId: bookingId,
