@@ -1,25 +1,25 @@
-import { Client } from 'square';
-import { v4 as uuidv4 } from 'uuid';
-import { supabaseAdmin } from '@/utils/supabaseAdminClient';
+const { SquareClient, SquareEnvironment } = require('square');
+const { v4: uuidv4 } = require('uuid');
+const { supabaseAdmin } = require('@/utils/supabaseAdminClient');
 
 function getClient() {
-  return new Client({
-    accessToken: process.env.SQUARE_ACCESS_TOKEN,
-    environment: process.env.SQUARE_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
+  return new SquareClient({
+    token: process.env.SQUARE_ACCESS_TOKEN,
+    environment: process.env.SQUARE_ENVIRONMENT === 'production'
+      ? SquareEnvironment.Production
+      : SquareEnvironment.Sandbox,
   });
 }
 
 async function getLocationId(client) {
-  // Use env var if set, otherwise fetch first location from Square
   if (process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID) {
     return process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   }
-  const { result } = await client.locationsApi.listLocations();
-  return result.locations?.[0]?.id;
+  const response = await client.locations.list();
+  return response.locations?.[0]?.id;
 }
 
 export default async function handler(req, res) {
-  // Outer catch ensures we always return JSON, never an HTML error page
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ success: false, error: 'Method not allowed' });
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     const end_time = `${String(startHour + (duration || 1)).padStart(2, '0')}:00`;
     const servicesArray = typeof services === 'string' ? services.split(',').map(s => s.trim()) : services;
 
-    // 1. Save booking with pending_payment status
+    // 1. Save booking
     const { error: insertError } = await supabaseAdmin.from('bookings').insert({
       id: bookingId,
       name,
@@ -69,12 +69,12 @@ export default async function handler(req, res) {
 
     if (!locationId) {
       await supabaseAdmin.from('bookings').delete().eq('id', bookingId);
-      return res.status(500).json({ success: false, error: 'No Square location found. Check your credentials.' });
+      return res.status(500).json({ success: false, error: 'No Square location found. Check credentials.' });
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.onsiteautolv.com';
 
-    const { result } = await client.checkoutApi.createPaymentLink({
+    const response = await client.checkout.paymentLinks.create({
       idempotencyKey: bookingId,
       order: {
         locationId,
@@ -92,7 +92,10 @@ export default async function handler(req, res) {
       },
     });
 
-    return res.status(200).json({ success: true, checkoutUrl: result.paymentLink.url });
+    const checkoutUrl = response.paymentLink?.url;
+    if (!checkoutUrl) throw new Error('Square did not return a checkout URL');
+
+    return res.status(200).json({ success: true, checkoutUrl });
 
   } catch (err) {
     console.error('create-checkout error:', err);
