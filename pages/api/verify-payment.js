@@ -16,20 +16,24 @@ export default async function handler(req, res) {
       return res.status(405).json({ success: false, error: 'Method not allowed' });
     }
 
-    const { bookingId, transactionId } = req.query;
+    const { bookingId, orderId } = req.query;
 
-    if (!bookingId || !transactionId) {
-      return res.status(400).json({ success: false, error: 'Missing bookingId or transactionId' });
+    if (!bookingId || !orderId) {
+      return res.status(400).json({ success: false, error: 'Missing bookingId or orderId' });
     }
 
-    // 1. Verify payment with Square
+    // 1. Fetch the Square order and check for tenders (proof of payment)
     const client = getClient();
-    const response = await client.payments.get({ paymentId: transactionId });
-    const payment = response.payment;
+    const orderResponse = await client.orders.get({ orderId });
+    const order = orderResponse.order;
 
-    if (!payment || payment.status !== 'COMPLETED') {
-      return res.status(400).json({ success: false, error: 'Payment not completed' });
+    const tender = order?.tenders?.[0];
+    if (!tender) {
+      return res.status(400).json({ success: false, error: 'Payment not completed — no tender found' });
     }
+
+    // tender.paymentId is the Payments API ID; fall back to tender.id
+    const paymentId = tender.paymentId || tender.id;
 
     // 2. Fetch booking
     const { data: booking, error: fetchError } = await supabaseAdmin
@@ -42,6 +46,7 @@ export default async function handler(req, res) {
       return res.status(404).json({ success: false, error: 'Booking not found' });
     }
 
+    // Prevent double-processing
     if (booking.paid) {
       return res.status(200).json({ success: true, booking });
     }
@@ -49,7 +54,7 @@ export default async function handler(req, res) {
     // 3. Mark as paid
     const { error: updateError } = await supabaseAdmin
       .from('bookings')
-      .update({ paid: true, square_payment_id: transactionId, status: 'pending' })
+      .update({ paid: true, square_payment_id: paymentId, status: 'pending' })
       .eq('id', bookingId);
 
     if (updateError) throw updateError;
@@ -60,7 +65,7 @@ export default async function handler(req, res) {
     const textbeltKey = process.env.TEXTBELT_API_KEY;
 
     if (ownerPhone && textbeltKey) {
-      const msg = `💳 NEW BOOKING — $50 DEPOSIT PAID${booking.is_emergency ? ' 🚨 EMERGENCY' : ''}
+      const msg = `💳 NEW BOOKING — DEPOSIT PAID${booking.is_emergency ? ' 🚨 EMERGENCY' : ''}
 
 Customer: ${booking.name}
 Phone: ${booking.phone}

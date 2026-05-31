@@ -4,20 +4,20 @@ import Link from 'next/link';
 
 export default function BookingConfirmation() {
   const router = useRouter();
-  const { bookingId, transactionId } = router.query;
+  const { bookingId, orderId } = router.query;
   const [status, setStatus] = useState('loading');
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!router.isReady) return;
-    if (!bookingId || !transactionId) {
+    if (!bookingId || !orderId) {
       setError('Missing booking or payment information.');
       setStatus('error');
       return;
     }
 
-    fetch(`/api/verify-payment?bookingId=${bookingId}&transactionId=${transactionId}`)
+    fetch(`/api/verify-payment?bookingId=${bookingId}&orderId=${orderId}`)
       .then(r => r.json())
       .then(data => {
         if (data.success) {
