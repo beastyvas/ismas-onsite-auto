@@ -1192,9 +1192,25 @@ const past = filteredAppointments.filter(
 }
 
   async function deleteAppointment(id) {
-    const ok = window.confirm("Delete this appointment?");
+    const ok = window.confirm("Delete this appointment? A cancellation text will be sent to the client.");
     if (!ok) return;
-    
+
+    const appt = appointments.find((a) => a.id === id);
+
+    // Fire cancellation SMS — don't block delete if it fails
+    if (appt?.phone) {
+      fetch("/api/cancel-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: appt.customerName,
+          phone: appt.phone,
+          date: appt.date,
+          start_time: appt.time,
+        }),
+      }).catch((err) => console.error("cancel-notify error:", err));
+    }
+
     const { error } = await supabase
       .from("bookings")
       .delete()
@@ -2110,78 +2126,62 @@ async function handleSaveSettings(e) {
 
 {/* UPCOMING BUTTONS ONLY */}
 {apptTab === "upcoming" && (
-  <div className="flex flex-wrap gap-1 mt-2 justify-end">
-    {/* Confirm & Notify - Only show if pending */}
-    {a.status === "pending" && (
+  <div className="mt-2 space-y-1.5">
+    {/* Row 1 — workflow actions (contextual) */}
+    <div className="flex flex-wrap gap-1 justify-end">
+      {a.status === "pending" && (
+        <button
+          onClick={() => confirmAndNotify(a.id)}
+          className="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-red-600 text-white hover:bg-red-500 transition"
+        >
+          Confirm &amp; Notify
+        </button>
+      )}
+      {a.status === "confirmed" && (
+        <button
+          onClick={() => handleOnTheWay(a)}
+          className="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition"
+        >
+          On The Way
+        </button>
+      )}
+      {(a.status === "confirmed" || a.status === "on_way") && (
+        <button
+          onClick={() => completeAppointment(a.id)}
+          className="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition"
+        >
+          Mark Completed
+        </button>
+      )}
+      {!a.paid && (
+        <button
+          onClick={() => updatePaidStatus(a.id, true)}
+          className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/60 transition"
+        >
+          Mark Paid
+        </button>
+      )}
+    </div>
+
+    {/* Row 2 — management actions (always visible) */}
+    <div className="flex gap-1 justify-end border-t border-zinc-800 pt-1.5">
       <button
-        onClick={() => confirmAndNotify(a.id)}
-        className="px-2.5 py-1 text-[11px] rounded-lg bg-red-600 text-white hover:bg-red-500"
+        onClick={() => setEditingApptId(editingApptId === a.id ? null : a.id)}
+        className={`px-2.5 py-1 text-[11px] rounded-lg border transition ${
+          editingApptId === a.id
+            ? "bg-zinc-700 border-zinc-600 text-zinc-200"
+            : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+        }`}
       >
-        Confirm & Notify
+        {editingApptId === a.id ? "Close" : "✏️ Edit"}
       </button>
-    )}
-
-    {/* On The Way - Only show if confirmed (not pending, not on_way) */}
-    {a.status === "confirmed" && (
       <button
-        onClick={() => handleOnTheWay(a)}
-        className="px-2.5 py-1 text-[11px] rounded-lg bg-blue-600 text-white hover:bg-blue-500"
+        onClick={() => deleteAppointment(a.id)}
+        className="px-2.5 py-1 text-[11px] rounded-lg bg-red-900/20 text-red-400 border border-red-500/30 hover:bg-red-900/40 transition"
       >
-        On The Way
+        🗑️ Delete
       </button>
-    )}
-
-    {/* Mark Completed - Show if confirmed or on_way */}
-    {(a.status === "confirmed" || a.status === "on_way") && 
-     a.status !== "completed" && 
-     a.status !== "cancelled" && (
-      <button
-        onClick={() => completeAppointment(a.id)}
-        className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
-      >
-        Mark Completed
-      </button>
-    )}
-
-    {/* Mark Deposit Paid - manual override for cash/phone payments */}
-    {!a.paid && (
-      <button
-        onClick={() => updatePaidStatus(a.id, true)}
-        className="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/60"
-      >
-        Mark Deposit Paid
-      </button>
-    )}
-
-    {/* Cancel - Show unless cancelled or completed */}
-    {a.status !== "cancelled" && a.status !== "completed" && (
-      <button
-        onClick={() => cancelAppointment(a.id)}
-        className="px-2.5 py-1 text-[11px] rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
-      >
-        Cancel
-      </button>
-    )}
-
-    {/* EDIT BUTTON */}
-    <button
-      onClick={() => setEditingApptId(editingApptId === a.id ? null : a.id)}
-      className={`px-2.5 py-1 text-[11px] rounded-lg border transition ${
-        editingApptId === a.id
-          ? "bg-zinc-700 border-zinc-600 text-zinc-200"
-          : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
-      }`}
-    >
-      {editingApptId === a.id ? "Close" : "✏️ Edit"}
-    </button>
-
-    {/* DELETE BUTTON - Always show in upcoming */}
-    <button
-      onClick={() => deleteAppointment(a.id)}
-      className="px-2.5 py-1 text-[11px] rounded-lg bg-red-900/20 text-red-400 border border-red-500/30 hover:bg-red-900/40"
-    >
-      🗑️ Delete
-    </button>
+    </div>
   </div>
 )}
 
