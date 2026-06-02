@@ -32,6 +32,232 @@ function TextareaField({ label, value, onChange, rows = 3 }) {
   );
 }
 
+function EditAppointmentForm({ appointment, services, onSave, onCancel }) {
+  const [formData, setFormData] = useState({
+    name: appointment.customerName || "",
+    phone: appointment.phone || "",
+    address: appointment.address || "",
+    vehicle: appointment.vehicle || "",
+    services: appointment.services || [],
+    date: appointment.date || "",
+    start_time: appointment.time || "",
+    duration: appointment.duration || 2,
+    notes: appointment.notes || "",
+    is_emergency: appointment.emergency || false,
+    veteran_discount: appointment.veteranDiscount || false,
+    paid: appointment.paid || false,
+    status: appointment.status || "confirmed",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    const [hour, minute] = formData.start_time.split(":");
+    const endHour = parseInt(hour) + (parseInt(formData.duration) || 1);
+    const end_time = `${String(endHour).padStart(2, "0")}:${minute || "00"}`;
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({
+        name: formData.name,
+        phone: formData.phone,
+        address: formData.address,
+        vehicle: formData.vehicle,
+        services: formData.services,
+        date: formData.date,
+        start_time: formData.start_time,
+        end_time,
+        duration: parseInt(formData.duration) || 1,
+        notes: formData.notes,
+        is_emergency: formData.is_emergency,
+        veteran_discount: formData.veteran_discount,
+        paid: formData.paid,
+        status: formData.status,
+      })
+      .eq("id", appointment.id);
+
+    setSaving(false);
+    if (error) {
+      alert("Failed to save: " + error.message);
+    } else {
+      onSave({ ...formData, end_time });
+    }
+  };
+
+  const toggleService = (title) => {
+    setFormData((prev) => ({
+      ...prev,
+      services: prev.services.includes(title)
+        ? prev.services.filter((s) => s !== title)
+        : [...prev.services, title],
+    }));
+  };
+
+  const inputCls =
+    "w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500";
+  const labelCls = "block text-[11px] text-zinc-400 mb-1";
+  const selectCls =
+    "w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-red-500";
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mt-3 space-y-4 bg-zinc-900/80 border border-zinc-700 rounded-xl p-4"
+    >
+      <h4 className="text-xs font-semibold text-zinc-300 uppercase tracking-wide">
+        Edit Appointment
+      </h4>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Name *</label>
+          <input type="text" required value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Phone</label>
+          <input type="tel" value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            className={inputCls} />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Service Address</label>
+          <input type="text" value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            className={inputCls} />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Vehicle</label>
+          <input type="text" value={formData.vehicle}
+            onChange={(e) => setFormData({ ...formData, vehicle: e.target.value })}
+            placeholder="e.g. 2018 Honda Civic"
+            className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Date</label>
+          <input type="date" value={formData.date}
+            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Start Time</label>
+          <input type="time" value={formData.start_time}
+            onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+            className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Duration (hours)</label>
+          <input type="number" min="1" max="12" value={formData.duration}
+            onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 1 })}
+            className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Status</label>
+          <select value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            className={selectCls}>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="on_way">On The Way</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div>
+          <label className={labelCls}>Payment</label>
+          <select value={formData.paid ? "true" : "false"}
+            onChange={(e) => setFormData({ ...formData, paid: e.target.value === "true" })}
+            className={selectCls}>
+            <option value="false">Deposit Pending</option>
+            <option value="true">Deposit Paid</option>
+          </select>
+        </div>
+      </div>
+
+      {services.length > 0 && (
+        <div>
+          <label className={labelCls}>Services</label>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {services.map((svc) => (
+              <button
+                key={svc.id}
+                type="button"
+                onClick={() => toggleService(svc.title)}
+                className={`px-2.5 py-1 text-xs rounded-lg border transition ${
+                  formData.services.includes(svc.title)
+                    ? "bg-red-600 border-red-500 text-white"
+                    : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                }`}
+              >
+                {svc.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {services.length === 0 && (
+        <div>
+          <label className={labelCls}>Services (comma-separated)</label>
+          <input type="text"
+            value={formData.services.join(", ")}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                services: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+              })
+            }
+            className={inputCls} />
+        </div>
+      )}
+
+      <div className="flex gap-4">
+        <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+          <input type="checkbox" checked={formData.is_emergency}
+            onChange={(e) => setFormData({ ...formData, is_emergency: e.target.checked })}
+            className="w-3.5 h-3.5 rounded border-zinc-600 text-red-500" />
+          Emergency
+        </label>
+        <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+          <input type="checkbox" checked={formData.veteran_discount}
+            onChange={(e) => setFormData({ ...formData, veteran_discount: e.target.checked })}
+            className="w-3.5 h-3.5 rounded border-zinc-600 text-green-500" />
+          Veteran Discount
+        </label>
+      </div>
+
+      <div>
+        <label className={labelCls}>Notes</label>
+        <textarea rows="2" value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-100 resize-none focus:outline-none focus:ring-1 focus:ring-red-500" />
+      </div>
+
+      <div className="flex gap-3">
+        <button type="submit" disabled={saving}
+          className="flex-1 px-4 py-2 bg-white text-black text-xs font-semibold rounded-lg hover:bg-zinc-200 transition disabled:opacity-50">
+          {saving ? "Saving..." : "Save Changes"}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-4 py-2 bg-zinc-800 text-zinc-200 text-xs rounded-lg hover:bg-zinc-700 transition border border-zinc-700">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function NewAppointmentForm({ services, onSuccess, onCancel }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -315,6 +541,7 @@ const [logoPreview, setLogoPreview] = useState(null); // ← ADD THIS
   const [showOnlyEmergency, setShowOnlyEmergency] = useState(false);
   const [showOnlyPaid, setShowOnlyPaid] = useState(false);
   const [showNewApptForm, setShowNewApptForm] = useState(false);
+  const [editingApptId, setEditingApptId] = useState(null);
 
   const getStorageUrl = (bucket, path) => {
   if (!path) return null;
@@ -980,6 +1207,32 @@ const past = filteredAppointments.filter(
     }
 
     setAppointments((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function handleEditSave(apptId, updated) {
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === apptId
+          ? {
+              ...apt,
+              customerName: updated.name,
+              phone: updated.phone,
+              address: updated.address,
+              vehicle: updated.vehicle,
+              services: updated.services,
+              date: updated.date,
+              time: updated.start_time,
+              duration: updated.duration,
+              notes: updated.notes,
+              emergency: updated.is_emergency,
+              veteranDiscount: updated.veteran_discount,
+              paid: updated.paid,
+              status: updated.status,
+            }
+          : apt
+      )
+    );
+    setEditingApptId(null);
   }
 
   function handleScheduleChange(dayKey, field, value) {
@@ -1910,6 +2163,18 @@ async function handleSaveSettings(e) {
       </button>
     )}
 
+    {/* EDIT BUTTON */}
+    <button
+      onClick={() => setEditingApptId(editingApptId === a.id ? null : a.id)}
+      className={`px-2.5 py-1 text-[11px] rounded-lg border transition ${
+        editingApptId === a.id
+          ? "bg-zinc-700 border-zinc-600 text-zinc-200"
+          : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+      }`}
+    >
+      {editingApptId === a.id ? "Close" : "✏️ Edit"}
+    </button>
+
     {/* DELETE BUTTON - Always show in upcoming */}
     <button
       onClick={() => deleteAppointment(a.id)}
@@ -2020,7 +2285,17 @@ async function handleSaveSettings(e) {
     </div>
 
     {/* SAVE BUTTON */}
-    <div className="flex justify-end">
+    <div className="flex justify-between items-center">
+      <button
+        onClick={() => setEditingApptId(editingApptId === a.id ? null : a.id)}
+        className={`px-3 py-1.5 text-xs rounded-lg border transition ${
+          editingApptId === a.id
+            ? "bg-zinc-700 border-zinc-600 text-zinc-200"
+            : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+        }`}
+      >
+        {editingApptId === a.id ? "Close Edit" : "✏️ Edit"}
+      </button>
       <button
         onClick={() => saveLocalJobNotes(a.id)}
         className="px-4 py-2 bg-white text-black text-sm font-semibold rounded-lg hover:bg-zinc-200 transition"
@@ -2032,6 +2307,14 @@ async function handleSaveSettings(e) {
 )}
                     </div>
                   </div>
+                  {editingApptId === a.id && (
+                    <EditAppointmentForm
+                      appointment={a}
+                      services={services}
+                      onSave={(updated) => handleEditSave(a.id, updated)}
+                      onCancel={() => setEditingApptId(null)}
+                    />
+                  )}
                 </div>
               ))}
             </div>
