@@ -1,6 +1,13 @@
 // pages/api/book.js
 import { supabaseAdmin } from "@/utils/supabaseAdminClient";
 
+function normalizePhone(phone) {
+  const digits = String(phone).replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return `+${digits}`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
@@ -82,7 +89,7 @@ export default async function handler(req, res) {
     // Get owner's phone number from settings
      const { data: settings, error: settingsError } = await supabaseAdmin
       .from("settings")
-      .select("sms_number, phone")
+      .select("sms_number, phone, business_name")
       .single();
 
     if (settingsError) {
@@ -128,13 +135,48 @@ ${notes ? `Notes: ${notes}` : ''}`;
         console.error('SMS notification error:', smsError);
       }
     } else {
-      console.log('⚠️ SMS not sent - missing phone or API key');
+      console.log('⚠️ Owner SMS not sent - missing phone or API key');
     }
 
-    return res.status(200).json({ 
-      success: true, 
+    // Send confirmation SMS to the client
+    if (phone && textbeltKey) {
+      try {
+        const businessName = settings?.business_name || "Isma's OnSite Auto";
+        const businessPhone = settings?.sms_number || settings?.phone || process.env.OWNER_PHONE || "(702) 801-7210";
+
+        const clientMessage =
+          `Hi ${name}! Your appointment with ${businessName} is confirmed.\n\n` +
+          `📅 ${date} at ${start_time}\n` +
+          `📍 ${address}\n` +
+          `🚗 ${vehicle_info}\n` +
+          `🔧 ${Array.isArray(servicesArray) ? servicesArray.join(", ") : servicesArray}\n\n` +
+          `Questions? Call us at ${businessPhone}.`;
+
+        const clientSmsResponse = await fetch('https://textbelt.com/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: normalizePhone(phone),
+            message: clientMessage,
+            key: textbeltKey,
+          }),
+        });
+
+        const clientSmsResult = await clientSmsResponse.json();
+        if (!clientSmsResult.success) {
+          console.error('Client SMS failed:', clientSmsResult.error);
+        } else {
+          console.log('✅ Client SMS sent. Quota remaining:', clientSmsResult.quotaRemaining);
+        }
+      } catch (smsError) {
+        console.error('Client SMS error:', smsError);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
       data: data[0],
-      message: "Booking created successfully" 
+      message: "Booking created successfully"
     });
 
   } catch (err) {
