@@ -1209,6 +1209,32 @@ const past = filteredAppointments.filter(
     setAppointments((prev) => prev.filter((a) => a.id !== id));
   }
 
+  function handleEditSave(apptId, updated) {
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === apptId
+          ? {
+              ...apt,
+              customerName: updated.name,
+              phone: updated.phone,
+              address: updated.address,
+              vehicle: updated.vehicle,
+              services: updated.services,
+              date: updated.date,
+              time: updated.start_time,
+              duration: updated.duration,
+              notes: updated.notes,
+              emergency: updated.is_emergency,
+              veteranDiscount: updated.veteran_discount,
+              paid: updated.paid,
+              status: updated.status,
+            }
+          : apt
+      )
+    );
+    setEditingApptId(null);
+  }
+
   function handleScheduleChange(dayKey, field, value) {
     setSchedule((prev) => ({
       ...prev,
@@ -2285,34 +2311,11 @@ async function handleSaveSettings(e) {
                     <EditAppointmentForm
                       appointment={a}
                       services={services}
-                      onSave={(updated) => {
-                        setAppointments((prev) =>
-                          prev.map((apt) =>
-                            apt.id === a.id
-                              ? {
-                                  ...apt,
-                                  customerName: updated.name,
-                                  phone: updated.phone,
-                                  address: updated.address,
-                                  vehicle: updated.vehicle,
-                                  services: updated.services,
-                                  date: updated.date,
-                                  time: updated.start_time,
-                                  duration: updated.duration,
-                                  notes: updated.notes,
-                                  emergency: updated.is_emergency,
-                                  veteranDiscount: updated.veteran_discount,
-                                  paid: updated.paid,
-                                  status: updated.status,
-                                }
-                              : apt
-                          )
-                        );
-                        setEditingApptId(null);
-                      }}
+                      onSave={(updated) => handleEditSave(a.id, updated)}
                       onCancel={() => setEditingApptId(null)}
                     />
                   )}
+                </div>
               ))}
             </div>
           </section>
