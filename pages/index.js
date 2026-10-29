@@ -58,6 +58,17 @@ async function fetchOpenTimes(date, duration) {
   return open;
 }
 
+// Copied word for word from Isma's Google reviews. "…" marks where Google cut the text off.
+const googleReviews = [
+  { name: "Anthony Wilson", text: "Honest and dependable!!! Great customer service and always gets the job done right! I highly recommend him!!!" },
+  { name: "anielca mattos", text: "Ismael is very knowledgeable, great, and sufficient. I was extremely pleased with the service done on my car! Will highly recommend!" },
+  { name: "Vanessa Zepeta", text: "Explains the whole process very well just to inform and keep the customer at ease about what he will be doing to fix the car. He is a very efficient mechanic with affordable prices! He also does free quotes so I was able to know what my car needed and how much it would come out to get it fixed! …" },
+  { name: "Sebastian Ornelas", text: "Solid 10/10, cheap prices, very communicative, and job was done perfectly. This won’t be the last time i’ll be looking towards onsite repairs …" },
+  { name: "Trillyyy 03", text: "Sometimes you need more than just a mechanic sometimes you need a friend🤝. Outstanding service, will definitely be coming back. …" },
+  { name: "Reteco 13", text: "Great service. Very RELIABLE. ALWAYS ON TIME and very nice definitely recommend 👍 …" },
+  { name: "Luis Detrinidad", text: "Very reliable, cheap, super friendly …" },
+];
+
 const copy = {
   en: {
     book: "Book a time",
@@ -94,7 +105,10 @@ const copy = {
     ],
     meet: (name) => `Meet ${name}`,
     reviewsTitle: "What customers say",
-    reviewsLead: "Reviews from Isma's customers.",
+    reviewsLead: "Straight from his Google page, word for word.",
+    googleReview: "Google review",
+    moreReviews: "Show more reviews",
+    fiveStars: "5-star Google reviews",
     bookTitle: "Book your repair",
     bookLead: "Takes about two minutes. Isma confirms by text.",
     deposit: "A $50 deposit holds your time.",
@@ -176,7 +190,10 @@ const copy = {
     ],
     meet: (name) => `Conoce a ${name}`,
     reviewsTitle: "Lo que dicen los clientes",
-    reviewsLead: "Reseñas de los clientes de Isma.",
+    reviewsLead: "Directo de su página de Google, tal cual.",
+    googleReview: "Reseña de Google",
+    moreReviews: "Ver más reseñas",
+    fiveStars: "Reseñas de 5 estrellas en Google",
     bookTitle: "Reserva tu reparación",
     bookLead: "Toma unos dos minutos. Isma confirma por texto.",
     deposit: "Un depósito de $50 aparta tu horario.",
@@ -246,6 +263,7 @@ export default function Home() {
   const [promoText, setPromoText] = useState("");
   const [openCategories, setOpenCategories] = useState(new Set());
   const [showAllServices, setShowAllServices] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const [testimonials, setTestimonials] = useState([]);
   const [mechanics, setMechanics] = useState([]);
   const [serviceOptions, setServiceOptions] = useState([]);
@@ -530,6 +548,20 @@ export default function Home() {
   const visibleServices = showAllServices ? serviceOptions : serviceOptions.slice(0, 6);
   const mechanic = mechanics[0];
   const mechanicPhoto = mechanic?.photo_url ? getStorageUrl("mechanics", mechanic.photo_url) : null;
+  // Google reviews first, then any saved in the dashboard that aren't already shown
+  const allReviews = [
+    ...googleReviews.map((r) => ({ key: `g-${r.name}`, name: r.name, text: r.text, rating: 5 })),
+    ...testimonials
+      .filter((r) => !googleReviews.some((g) => g.name.toLowerCase() === String(r.name || "").toLowerCase()))
+      .map((r) => ({
+        key: r.id || r.name,
+        name: r.name,
+        text: r.text,
+        rating: Math.min(5, Math.max(1, r.rating || 5)),
+        service: r.service,
+        image: r.image_url ? getStorageUrl("testimonials", r.image_url) : null,
+      })),
+  ];
   const selectedList = selectedServices.map((id) => serviceOptions.find((x) => x.id === id)).filter(Boolean);
 
   return (
@@ -573,6 +605,7 @@ export default function Home() {
               <a href={telHref} className={`${s.btn} ${s.btnCall}`}>{settings.phone}</a>
             </div>
             <div className={s.trust}>
+              <a href="#reviews"><span className={s.stars}>★★★★★</span> {t.fiveStars}</a>
               <span>{t.since}</span>
               <span>{t.spanish}</span>
               <span>{settings.hours}</span>
@@ -682,32 +715,31 @@ export default function Home() {
         </section>
       )}
 
-      {testimonials.length > 0 && (
-        <section className={`${s.sec} ${s.alt}`} id="reviews">
-          <div className={s.wrap}>
-            <h2>{t.reviewsTitle}</h2>
-            <p className={s.lead}>{t.reviewsLead}</p>
-            <div className={s.reviews}>
-              {testimonials.slice(0, 6).map((review) => (
-                <figure className={s.review} key={review.id || review.name}>
-                  <span className={s.stars} aria-label={`${review.rating || 5} out of 5 stars`}>
-                    {"★".repeat(Math.min(5, Math.max(1, review.rating || 5)))}
-                  </span>
-                  {review.image_url ? (
-                    <img src={getStorageUrl("testimonials", review.image_url)} alt={`Review from ${review.name}`} loading="lazy" />
-                  ) : (
-                    <blockquote>“{review.text}”</blockquote>
-                  )}
-                  <figcaption>
-                    {review.name}
-                    {review.service && <span>{review.service}</span>}
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+      <section className={`${s.sec} ${s.alt}`} id="reviews">
+        <div className={s.wrap}>
+          <h2>{t.reviewsTitle}</h2>
+          <p className={s.lead}>{t.reviewsLead}</p>
+          <div className={s.reviews}>
+            {(showAllReviews ? allReviews : allReviews.slice(0, 4)).map((review) => (
+              <figure className={s.review} key={review.key}>
+                <span className={s.stars} aria-label={`${review.rating} out of 5 stars`}>{"★".repeat(review.rating)}</span>
+                {review.image ? (
+                  <img src={review.image} alt={`Review from ${review.name}`} loading="lazy" />
+                ) : (
+                  <blockquote>“{review.text}”</blockquote>
+                )}
+                <figcaption>
+                  {review.name}
+                  <span>{review.service || t.googleReview}</span>
+                </figcaption>
+              </figure>
+            ))}
           </div>
-        </section>
-      )}
+          {!showAllReviews && allReviews.length > 4 && (
+            <button type="button" className={s.more} onClick={() => setShowAllReviews(true)}>{t.moreReviews}</button>
+          )}
+        </div>
+      </section>
 
       <section className={s.sec} id="booking">
         <div className={`${s.wrap} ${s.bookGrid}`}>
