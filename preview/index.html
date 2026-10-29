@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Isma's Onsite Auto | Mobile Auto Repair in Las Vegas</title>
+<meta name="description" content="Mobile auto repair at your home or work in Las Vegas, Henderson and North Las Vegas. Se habla español. (702) 801-7210.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#151b24">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700;8..60,800&display=swap">
+<style>
+* { box-sizing: border-box }
+html, body { margin: 0; background: #eef0ee; }
+html { scroll-behavior: smooth; }
+img { max-width: 100% }
+button:focus-visible, a:focus-visible { outline: 3px solid #eaa53c; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+.m { --night: #151b24; --night2: #1e2632; --slate: #4d5f7b; --slate-soft: #c9d1dc; --stone: #eef0ee; --white: #ffffff; --ink: #18202b; --soft: #5a6472; --amber: #eaa53c; --rule: #d8dcdf;
+container-type: inline-size; background: var(--stone); color: var(--ink); font: 400 16px/1.55 "Figtree", sans-serif; }
+.m a { color: inherit; text-decoration: none; }
+.serif { font-family: "Source Serif 4", Georgia, serif; font-optical-sizing: auto; }
+.wrap { padding-inline: 20px; max-width: 1080px; margin: 0 auto; }
+.m-top { position: sticky; top: 0; z-index: 5; background: var(--night); color: var(--white); border-bottom: 1px solid rgba(255,255,255,.08); }
+.m-top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 58px; }
+.brand { font: 700 19px/1 "Source Serif 4", Georgia, serif; }
+.top-r { display: flex; align-items: center; gap: 10px; }
+.lang { display: flex; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; overflow: hidden; }
+.lang button { font: 600 12px "Figtree", sans-serif; color: var(--slate-soft); background: none; border: 0; padding: 6px 10px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--white); color: var(--night); }
+.top-book { display: none; background: var(--amber); color: var(--night); font-weight: 700; font-size: 14px; padding: 9px 16px; border-radius: 8px; }
+.hero { position: relative; background: var(--night); color: var(--white); }
+.hero-photo { position: relative; aspect-ratio: 4 / 3; max-width: 100%; background: var(--night2) center / cover no-repeat; }
+.hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(21,27,36,.05) 40%, rgba(21,27,36,1) 100%); }
+.photo-tag { position: absolute; left: 20px; top: 16px; z-index: 1; background: rgba(21,27,36,.75); color: var(--white); font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; }
+.hero-copy { position: relative; padding-block: 0 30px; margin-top: -54px; }
+.hero h1 { font-size: clamp(38px, 10.5cqi, 68px); line-height: 1.02; font-weight: 800; margin: 0 0 14px; letter-spacing: -.015em; text-wrap: balance; }
+.hero p { color: var(--slate-soft); font-size: 17px; margin: 0 0 22px; max-width: 38ch; }
+.ctas { display: grid; gap: 10px; }
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 17px; padding: 16px 22px; border-radius: 10px; }
+.btn.book { background: var(--amber); color: var(--night); }
+.btn.call { color: var(--white); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.45); }
+.trust { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 22px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.12); font-size: 14px; color: var(--slate-soft); }
+.trust b { color: var(--white); }
+.stars { color: var(--amber); letter-spacing: 1px; }
+.slots { background: var(--white); border-radius: 16px; padding: 18px; margin-top: -2px; box-shadow: 0 10px 30px rgba(21,27,36,.12); position: relative; }
+.slots-band { background: linear-gradient(var(--night) 0 40px, var(--stone) 40px); padding-bottom: 8px; }
+.slots h2 { font-size: 21px; margin: 0 0 2px; font-weight: 700; }
+.slots .sub { margin: 0 0 14px; color: var(--soft); font-size: 14px; }
+.day { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--rule); }
+.day b { font-size: 14px; line-height: 1.2; padding-top: 8px; }
+.day b span { display: block; font-weight: 400; color: var(--soft); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 600 14px "Figtree", sans-serif; border: 1.5px solid var(--rule); background: var(--white); color: var(--ink); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] { border-color: var(--night); background: var(--night); color: var(--white); }
+.slots .btn.book { margin-top: 12px; width: 100%; border: 0; cursor: pointer; font-family: inherit; }
+.sec { padding-block: 40px; }
+.sec + .sec { border-top: 1px solid var(--rule); }
+.sec h2 { font-size: clamp(28px, 7cqi, 40px); line-height: 1.08; font-weight: 800; margin: 0 0 8px; letter-spacing: -.01em; text-wrap: balance; }
+.sec .lead { color: var(--soft); margin: 0 0 22px; max-width: 46ch; }
+.svc { list-style: none; margin: 0; padding: 0; display: grid; }
+.svc li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 14px 0; border-top: 1px solid var(--rule); }
+.svc li:last-child { border-bottom: 1px solid var(--rule); }
+.svc .n { font-weight: 600; font-size: 17px; }
+.svc .p { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.svc .t { color: var(--soft); font-size: 14px; }
+.svc .f { color: var(--soft); font-size: 14px; text-align: right; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 40px 1fr; gap: 14px; counter-increment: s; }
+.steps li::before { content: counter(s); width: 40px; height: 40px; border-radius: 50%; background: var(--night); color: var(--white); display: grid; place-items: center; font: 700 17px "Source Serif 4", serif; }
+.steps b { display: block; font-size: 17px; }
+.steps span { color: var(--soft); font-size: 15px; }
+.isma { display: grid; gap: 20px; }
+.isma-photo { aspect-ratio: 4 / 5; max-width: 100%; border-radius: 14px; border: 2px dashed var(--slate-soft); display: grid; place-items: center; text-align: center; color: var(--slate); font-weight: 600; padding: 20px; background: var(--white); }
+.isma p { margin: 0 0 12px; max-width: 52ch; }
+.rating { display: flex; align-items: center; gap: 14px; background: var(--white); border-radius: 14px; padding: 18px; }
+.rating .big { font: 800 44px/1 "Source Serif 4", serif; }
+.rating small { display: block; color: var(--soft); font-size: 14px; }
+.review-slot { margin-top: 12px; background: var(--white); border-radius: 14px; padding: 18px; color: var(--soft); font-size: 15px; border-left: 4px solid var(--amber); }
+.area { display: grid; gap: 22px; }
+.area h3 { font-size: 15px; margin: 0 0 8px; }
+.area ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.area li { background: var(--white); border: 1px solid var(--rule); border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 15px; }
+.area p { margin: 8px 0 0; color: var(--soft); font-size: 15px; }
+.foot { background: var(--night); color: var(--slate-soft); padding-block: 34px 100px; font-size: 15px; }
+.foot .brand { color: var(--white); margin-bottom: 10px; display: block; }
+.foot p { margin: 0 0 4px; }
+.dock { position: sticky; bottom: 0; z-index: 5; display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; padding: 10px 12px; background: rgba(21,27,36,.96); }
+.dock .btn { padding: 13px 12px; font-size: 16px; }
+@container (min-width: 760px) {
+.wrap { padding-inline: 40px; }
+.top-book { display: inline-block; }
+.hero-grid { display: grid; grid-template-columns: 1fr 1.05fr; align-items: stretch; }
+.hero-photo { aspect-ratio: auto; height: 100%; min-height: 520px; order: 2; }
+.hero-photo::after { background: linear-gradient(90deg, rgba(21,27,36,1) 0%, rgba(21,27,36,0) 35%); }
+.photo-tag { left: auto; right: 20px; }
+.hero-copy { margin-top: 0; padding: 64px 0 56px 40px; max-width: 560px; justify-self: end; width: 100%; padding-right: 32px; }
+.ctas { grid-template-columns: auto auto; justify-content: start; }
+.slots-band .wrap { max-width: 1080px; }
+.slots { display: grid; grid-template-columns: 240px 1fr; gap: 0 28px; padding: 24px 28px; }
+.slots > header { grid-row: span 4; }
+.slots .btn.book { grid-column: 2; justify-self: start; width: auto; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+.isma { grid-template-columns: 300px 1fr; align-items: center; }
+.area { grid-template-columns: 1fr 1fr; }
+.dock { display: none; }
+.foot { padding-bottom: 40px; }
+}
+.m-top { padding-top: env(safe-area-inset-top, 0px); }
+.dock { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
+</style>
+</head>
+<body>
+<div class="m" id="mock" lang="en">
+<header class="m-top"><div class="wrap">
+<span class="brand">Isma's Onsite Auto</span>
+<div class="top-r">
+<div class="lang" role="group" aria-label="Language"><button id="l-en" aria-pressed="true">EN</button><button id="l-es" aria-pressed="false">ES</button></div>
+<a class="top-book" href="#slots" data-es="Agendar">Book a time</a>
+</div>
+</div></header>
+<section class="hero"><div class="hero-grid">
+<div class="hero-photo" style="background-image:url('/carport.webp')" role="img" aria-label="Isma replacing brakes on a Honda Civic in an apartment carport">
+<span class="photo-tag" data-es="Trabajo real · Las Vegas">Real job · Las Vegas</span>
+</div>
+<div class="hero-copy wrap">
+<h1 class="serif" data-es="Reparación de autos donde estés estacionado.">Auto repair wherever you're parked.</h1>
+<p data-es="Isma va a tu casa o trabajo en Las Vegas, Henderson y North Las Vegas. Sin grúa, sin sala de espera.">Isma comes to your home or work in Las Vegas, Henderson and North Las Vegas. No tow, no waiting room.</p>
+<div class="ctas">
+<a class="btn book" href="#slots" data-es="Ver horarios disponibles">See open times</a>
+<a class="btn call" href="#slots">(702) 801-7210</a>
+</div>
+<div class="trust">
+<span><span class="stars">★★★★★</span> <b>5.0</b> <span data-es="en Google">on Google</span></span>
+<span data-es="Desde 2021">Since 2021</span>
+<span data-es="Se habla español">Se habla español</span>
+</div>
+</div>
+</div></section>
+<div class="slots-band"><div class="wrap">
+<div class="slots" id="slots">
+<header>
+<h2 class="serif" data-es="Próximos horarios">Next open times</h2>
+<p class="sub" data-es="Lun–Sáb, 8am–6pm. Elige uno y reserva en un minuto.">Mon–Sat, 8am–6pm. Pick one and book in a minute.</p>
+</header>
+<div class="day"><b data-es="Hoy">Today<span>Thu 29</span></b><div class="chips"><button class="chip">2:00 pm</button><button class="chip">4:00 pm</button></div></div>
+<div class="day"><b>Fri<span>Oct 30</span></b><div class="chips"><button class="chip">8:00 am</button><button class="chip">10:00 am</button><button class="chip">1:00 pm</button></div></div>
+<div class="day"><b>Sat<span>Oct 31</span></b><div class="chips"><button class="chip">9:00 am</button><button class="chip">11:30 am</button></div></div>
+<button class="btn book" id="slot-cta" data-es="Elige un horario">Pick a time</button>
+</div>
+</div></div>
+<section class="sec"><div class="wrap two">
+<div>
+<h2 class="serif" data-es="Lo que más arreglamos">What Isma fixes most</h2>
+<p class="lead" data-es="Precio y tiempo antes de empezar. Sin sorpresas al final.">Price and time up front. Nothing added at the end.</p>
+</div>
+<ul class="svc">
+<li><span class="n" data-es="Cambio de aceite">Oil change</span><span class="p">$65</span><span class="t">45 min</span><span class="f" data-es="desde">from</span></li>
+<li><span class="n" data-es="Balatas delanteras">Front brake pads</span><span class="p">$160</span><span class="t">1–1.5 hrs</span><span class="f" data-es="desde">from</span></li>
+<li><span class="n" data-es="Batería">Battery replacement</span><span class="p">$45</span><span class="t">30 min</span><span class="f" data-es="más la batería">plus battery</span></li>
+<li><span class="n" data-es="Luz de check engine">Check engine light</span><span class="p">$90</span><span class="t">1 hr</span><span class="f" data-es="diagnóstico">diagnostic</span></li>
+<li><span class="n" data-es="Marcha o alternador">Starter or alternator</span><span class="p" data-es="Cotización">Quote</span><span class="t">2–3 hrs</span><span class="f" data-es="por llamada">by phone</span></li>
+</ul>
+</div></section>
+<section class="sec"><div class="wrap two">
+<h2 class="serif" data-es="Cómo funciona">How it works</h2>
+<ol class="steps">
+<li><div><b data-es="Reserva un horario">Book a time</b><span data-es="Dinos el carro, el problema y dónde estará.">Tell us the car, the problem and where it'll be parked.</span></div></li>
+<li><div><b data-es="Isma llega a ti">Isma shows up</b><span data-es="Con herramientas y piezas. Recibes un texto cuando va en camino.">With the tools and parts. You get a text when he's on the way.</span></div></li>
+<li><div><b data-es="Paga en dos partes">Pay in two halves</b><span data-es="Mitad antes de empezar, mitad al terminar. Efectivo, Venmo, Zelle o Cash App.">Half before he starts, half when it's done. Cash, Venmo, Zelle or Cash App.</span></div></li>
+</ol>
+</div></section>
+<section class="sec"><div class="wrap isma">
+<div class="isma-photo" data-es="Foto de Isma con su camioneta">Photo of Isma with his truck</div>
+<div>
+<h2 class="serif" data-es="Conoce a Isma">Meet Isma</h2>
+<p data-es="Isma arregla carros por todo el valle desde 2021. La persona que reservas es la persona que llega.">Isma has been fixing cars across the valley since 2021. The person you book is the person who shows up.</p>
+<p data-es="Habla inglés y español, y te explica qué está mal antes de tocar nada.">He speaks English and Spanish, and he'll tell you what's wrong before he touches anything.</p>
+</div>
+</div></section>
+<section class="sec"><div class="wrap two">
+<div>
+<h2 class="serif" data-es="Lo que dicen los clientes">What customers say</h2>
+<p class="lead" data-es="Reseñas reales de Google, sin editar.">Real Google reviews, unedited.</p>
+</div>
+<div>
+<div class="rating"><span class="big">5.0</span><div><span class="stars">★★★★★</span><small data-es="9 reseñas en Google">9 reviews on Google</small></div></div>
+<div class="review-slot" data-es="Aquí van las reseñas de Google de Isma, palabra por palabra, con el nombre y la fecha.">Isma's Google reviews go here word for word, with each customer's name and date.</div>
+</div>
+</div></section>
+<section class="sec"><div class="wrap area">
+<div>
+<h3 data-es="Sin cargo de traslado">No travel fee</h3>
+<ul><li>Las Vegas</li><li>Henderson</li><li>North Las Vegas</li></ul>
+<p data-es="¿Fuera del condado de Clark? Llama para una cotización de traslado.">Outside Clark County? Call for a travel quote.</p>
+</div>
+<div>
+<h3 data-es="Formas de pago">Ways to pay</h3>
+<ul><li data-es="Efectivo">Cash</li><li>Venmo</li><li>Zelle</li><li>Cash App</li></ul>
+</div>
+</div></section>
+<footer class="foot"><div class="wrap">
+<span class="brand">Isma's Onsite Auto</span>
+<p>(702) 801-7210</p>
+<p data-es="Lun–Sáb, 8am–6pm">Mon–Sat, 8am–6pm</p>
+<p>Las Vegas, NV</p>
+</div></footer>
+<div class="dock">
+<a class="btn call" href="#slots" data-es="Llamar">Call</a>
+<a class="btn book" href="#slots" data-es="Agendar">Book a time</a>
+</div>
+</div>
+<script>
+(function () {
+const mock = document.getElementById("mock");
+mock.querySelectorAll('a[href="#slots"]').forEach(a => a.addEventListener("click", e => {
+e.preventDefault();
+const t = document.getElementById("slots");
+window.scrollTo({ top: t.getBoundingClientRect().top + scrollY - 70, behavior: "smooth" });
+}));
+let lang = "en", picked = null;
+const cta = document.getElementById("slot-cta");
+function ctaText() {
+if (!picked) { cta.textContent = lang === "es" ? "Elige un horario" : "Pick a time"; return; }
+const day = picked.closest(".day").querySelector("b").firstChild.textContent.trim();
+cta.textContent = (lang === "es" ? "Reservar " : "Book ") + day + ", " + picked.textContent;
+}
+mock.querySelectorAll(".chip").forEach(c => { c.setAttribute("aria-pressed", "false"); c.addEventListener("click", () => {
+mock.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", "false"));
+c.setAttribute("aria-pressed", "true"); picked = c; ctaText();
+}); });
+const nodes = [...mock.querySelectorAll("[data-es]")];
+nodes.forEach(n => { const t = n.firstChild && n.firstChild.nodeType === 3 ? n.firstChild : null; n.dataset.en = t ? t.textContent : n.textContent; });
+const en = document.getElementById("l-en"), es = document.getElementById("l-es");
+function setLang(l) {
+lang = l; mock.lang = l; document.documentElement.lang = l;
+nodes.forEach(n => { const v = n.dataset[l]; if (n.firstChild && n.firstChild.nodeType === 3 && n.children.length) n.firstChild.textContent = v; else n.textContent = v; });
+const dayMap = { Fri: "Vie", Sat: "Sáb" };
+mock.querySelectorAll(".day b").forEach(b => { const t = b.firstChild; if (b.dataset.es) return;
+if (l === "es" && dayMap[t.textContent]) { b.dataset.orig = t.textContent; t.textContent = dayMap[t.textContent]; }
+if (l === "en" && b.dataset.orig) t.textContent = b.dataset.orig; });
+en.setAttribute("aria-pressed", String(l === "en")); es.setAttribute("aria-pressed", String(l === "es"));
+ctaText();
+}
+en.addEventListener("click", () => setLang("en"));
+es.addEventListener("click", () => setLang("es"));
+})();
+</script>
+</body>
+</html>
