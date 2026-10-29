@@ -9,37 +9,37 @@
 <meta name="theme-color" content="#151b24">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700;8..60,800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Zilla+Slab:wght@600;700&display=swap">
 <style>
 * { box-sizing: border-box }
-html, body { margin: 0; background: #eef0ee; }
+html, body { margin: 0; background: #f2efe9; }
 html { scroll-behavior: smooth; }
 img { max-width: 100% }
 button:focus-visible, a:focus-visible { outline: 3px solid #eaa53c; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
-.m { --night: #151b24; --night2: #1e2632; --slate: #4d5f7b; --slate-soft: #c9d1dc; --stone: #eef0ee; --white: #ffffff; --ink: #18202b; --soft: #5a6472; --amber: #eaa53c; --rule: #d8dcdf;
+.m { --night: #151b24; --night2: #1e2632; --slate: #4d5f7b; --slate-soft: #c9d1dc; --stone: #f2efe9; --white: #ffffff; --ink: #18202b; --soft: #5a6472; --amber: #eaa53c; --rule: #e0dcd4;
 container-type: inline-size; background: var(--stone); color: var(--ink); font: 400 16px/1.55 "Figtree", sans-serif; }
 .m a { color: inherit; text-decoration: none; }
-.serif { font-family: "Source Serif 4", Georgia, serif; font-optical-sizing: auto; }
+.serif { font-family: "Zilla Slab", Georgia, serif; }
 .wrap { padding-inline: 20px; max-width: 1080px; margin: 0 auto; }
 .m-top { position: sticky; top: 0; z-index: 5; background: var(--night); color: var(--white); border-bottom: 1px solid rgba(255,255,255,.08); }
 .m-top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 58px; }
-.brand { font: 700 19px/1 "Source Serif 4", Georgia, serif; }
+.brand { font: 700 19px/1 "Zilla Slab", Georgia, serif; }
 .top-r { display: flex; align-items: center; gap: 10px; }
 .lang { display: flex; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; overflow: hidden; }
 .lang button { font: 600 12px "Figtree", sans-serif; color: var(--slate-soft); background: none; border: 0; padding: 6px 10px; cursor: pointer; }
 .lang button[aria-pressed="true"] { background: var(--white); color: var(--night); }
-.top-book { display: none; background: var(--amber); color: var(--night); font-weight: 700; font-size: 14px; padding: 9px 16px; border-radius: 8px; }
+.top-book { display: none; background: var(--slate); color: var(--white); font-weight: 700; font-size: 14px; padding: 9px 16px; border-radius: 8px; }
 .hero { position: relative; background: var(--night); color: var(--white); }
 .hero-photo { position: relative; aspect-ratio: 4 / 3; max-width: 100%; background: var(--night2) center / cover no-repeat; }
 .hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(21,27,36,.05) 40%, rgba(21,27,36,1) 100%); }
 .photo-tag { position: absolute; left: 20px; top: 16px; z-index: 1; background: rgba(21,27,36,.75); color: var(--white); font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; }
 .hero-copy { position: relative; padding-block: 0 30px; margin-top: -54px; }
-.hero h1 { font-size: clamp(38px, 10.5cqi, 68px); line-height: 1.02; font-weight: 800; margin: 0 0 14px; letter-spacing: -.015em; text-wrap: balance; }
+.hero h1 { font-size: clamp(38px, 10.5cqi, 68px); line-height: 1.02; font-weight: 700; margin: 0 0 14px; letter-spacing: -.015em; text-wrap: balance; }
 .hero p { color: var(--slate-soft); font-size: 17px; margin: 0 0 22px; max-width: 38ch; }
 .ctas { display: grid; gap: 10px; }
 .btn { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 17px; padding: 16px 22px; border-radius: 10px; }
-.btn.book { background: var(--amber); color: var(--night); }
+.btn.book { background: var(--slate); color: var(--white); }
 .btn.call { color: var(--white); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.45); }
 .trust { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 22px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.12); font-size: 14px; color: var(--slate-soft); }
 .trust b { color: var(--white); }
@@ -53,11 +53,11 @@ container-type: inline-size; background: var(--stone); color: var(--ink); font: 
 .day b span { display: block; font-weight: 400; color: var(--soft); font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font: 600 14px "Figtree", sans-serif; border: 1.5px solid var(--rule); background: var(--white); color: var(--ink); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
-.chip[aria-pressed="true"] { border-color: var(--night); background: var(--night); color: var(--white); }
+.chip[aria-pressed="true"] { border-color: var(--slate); background: var(--slate); color: var(--white); }
 .slots .btn.book { margin-top: 12px; width: 100%; border: 0; cursor: pointer; font-family: inherit; }
 .sec { padding-block: 40px; }
 .sec + .sec { border-top: 1px solid var(--rule); }
-.sec h2 { font-size: clamp(28px, 7cqi, 40px); line-height: 1.08; font-weight: 800; margin: 0 0 8px; letter-spacing: -.01em; text-wrap: balance; }
+.sec h2 { font-size: clamp(28px, 7cqi, 40px); line-height: 1.08; font-weight: 700; margin: 0 0 8px; letter-spacing: -.01em; text-wrap: balance; }
 .sec .lead { color: var(--soft); margin: 0 0 22px; max-width: 46ch; }
 .svc { list-style: none; margin: 0; padding: 0; display: grid; }
 .svc li { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 14px 0; border-top: 1px solid var(--rule); }
@@ -68,14 +68,14 @@ container-type: inline-size; background: var(--stone); color: var(--ink); font: 
 .svc .f { color: var(--soft); font-size: 14px; text-align: right; }
 .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; counter-reset: s; }
 .steps li { display: grid; grid-template-columns: 40px 1fr; gap: 14px; counter-increment: s; }
-.steps li::before { content: counter(s); width: 40px; height: 40px; border-radius: 50%; background: var(--night); color: var(--white); display: grid; place-items: center; font: 700 17px "Source Serif 4", serif; }
+.steps li::before { content: counter(s); width: 40px; height: 40px; border-radius: 50%; background: var(--night); color: var(--white); display: grid; place-items: center; font: 700 17px "Zilla Slab", Georgia, serif; }
 .steps b { display: block; font-size: 17px; }
 .steps span { color: var(--soft); font-size: 15px; }
 .isma { display: grid; gap: 20px; }
 .isma-photo { aspect-ratio: 4 / 5; max-width: 100%; border-radius: 14px; border: 2px dashed var(--slate-soft); display: grid; place-items: center; text-align: center; color: var(--slate); font-weight: 600; padding: 20px; background: var(--white); }
 .isma p { margin: 0 0 12px; max-width: 52ch; }
 .rating { display: flex; align-items: center; gap: 14px; background: var(--white); border-radius: 14px; padding: 18px; }
-.rating .big { font: 800 44px/1 "Source Serif 4", serif; }
+.rating .big { font: 700 44px/1 "Zilla Slab", Georgia, serif; }
 .rating small { display: block; color: var(--soft); font-size: 14px; }
 .review-slot { margin-top: 12px; background: var(--white); border-radius: 14px; padding: 18px; color: var(--soft); font-size: 15px; border-left: 4px solid var(--amber); }
 .area { display: grid; gap: 22px; }
@@ -83,6 +83,16 @@ container-type: inline-size; background: var(--stone); color: var(--ink); font: 
 .area ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .area li { background: var(--white); border: 1px solid var(--rule); border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 15px; }
 .area p { margin: 8px 0 0; color: var(--soft); font-size: 15px; }
+.sec.alt { background: var(--white); }
+.sec.alt .rating, .sec.alt .review-slot { background: var(--stone); }
+.faq { display: grid; }
+.faq details { border-top: 1px solid var(--rule); }
+.faq details:last-child { border-bottom: 1px solid var(--rule); }
+.faq summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; font-weight: 600; font-size: 17px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-size: 22px; line-height: 1; color: var(--slate); flex: none; }
+.faq details[open] summary::after { content: "\2212"; }
+.faq p { margin: 0 0 16px; color: var(--soft); max-width: 56ch; }
 .foot { background: var(--night); color: var(--slate-soft); padding-block: 34px 100px; font-size: 15px; }
 .foot .brand { color: var(--white); margin-bottom: 10px; display: block; }
 .foot p { margin: 0 0 4px; }
@@ -163,7 +173,7 @@ container-type: inline-size; background: var(--stone); color: var(--ink); font: 
 <li><span class="n" data-es="Marcha o alternador">Starter or alternator</span><span class="p" data-es="Cotización">Quote</span><span class="t">2–3 hrs</span><span class="f" data-es="por llamada">by phone</span></li>
 </ul>
 </div></section>
-<section class="sec"><div class="wrap two">
+<section class="sec alt"><div class="wrap two">
 <h2 class="serif" data-es="Cómo funciona">How it works</h2>
 <ol class="steps">
 <li><div><b data-es="Reserva un horario">Book a time</b><span data-es="Dinos el carro, el problema y dónde estará.">Tell us the car, the problem and where it'll be parked.</span></div></li>
@@ -179,7 +189,7 @@ container-type: inline-size; background: var(--stone); color: var(--ink); font: 
 <p data-es="Habla inglés y español, y te explica qué está mal antes de tocar nada.">He speaks English and Spanish, and he'll tell you what's wrong before he touches anything.</p>
 </div>
 </div></section>
-<section class="sec"><div class="wrap two">
+<section class="sec alt"><div class="wrap two">
 <div>
 <h2 class="serif" data-es="Lo que dicen los clientes">What customers say</h2>
 <p class="lead" data-es="Reseñas reales de Google, sin editar.">Real Google reviews, unedited.</p>
@@ -187,6 +197,19 @@ container-type: inline-size; background: var(--stone); color: var(--ink); font: 
 <div>
 <div class="rating"><span class="big">5.0</span><div><span class="stars">★★★★★</span><small data-es="9 reseñas en Google">9 reviews on Google</small></div></div>
 <div class="review-slot" data-es="Aquí van las reseñas de Google de Isma, palabra por palabra, con el nombre y la fecha.">Isma's Google reviews go here word for word, with each customer's name and date.</div>
+</div>
+</div></section>
+<section class="sec alt"><div class="wrap two">
+<div>
+<h2 class="serif" data-es="Preguntas frecuentes">Questions people ask</h2>
+<p class="lead" data-es="¿Algo más? Llama o manda texto al (702) 801-7210.">Anything else? Call or text (702) 801-7210.</p>
+</div>
+<div class="faq">
+<details><summary data-es="¿De verdad vienes a mi casa?">Do you really come to my house?</summary><p data-es="Sí. Isma trabaja en tu entrada, estacionamiento o trabajo, donde esté el carro.">Yes. Isma works in your driveway, parking lot or at your job, wherever the car is.</p></details>
+<details><summary data-es="¿Cobran por el traslado?">Is there a travel fee?</summary><p data-es="No en Las Vegas, Henderson ni North Las Vegas. Fuera del condado de Clark, llama para una cotización.">Not in Las Vegas, Henderson or North Las Vegas. Outside Clark County, call for a travel quote.</p></details>
+<details><summary data-es="¿Cómo pago?">How do I pay?</summary><p data-es="Mitad antes de empezar y mitad al terminar. Efectivo, Venmo, Zelle o Cash App.">Half before the job starts and half when it's done. Cash, Venmo, Zelle or Cash App.</p></details>
+<details><summary data-es="¿Hablan español?">Do you speak Spanish?</summary><p data-es="Sí. Isma atiende en inglés y en español.">Yes. Isma works with customers in English and Spanish.</p></details>
+<details><summary data-es="¿Qué días trabajan?">What days do you work?</summary><p data-es="Lunes a sábado, de 8am a 6pm.">Monday to Saturday, 8am to 6pm.</p></details>
 </div>
 </div></section>
 <section class="sec"><div class="wrap area">
