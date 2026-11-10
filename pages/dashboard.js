@@ -2813,6 +2813,38 @@ async function handleSaveSettings(e) {
                           {s.price}
                         </p>
                       )}
+                      {categories.length > 0 && (
+                        <label className="flex items-center gap-2 mt-2 text-[11px] text-zinc-400">
+                          Category
+                          <select
+                            value={s.category_id || ""}
+                            onChange={async (e) => {
+                              const categoryId = e.target.value || null;
+                              const { error } = await supabase
+                                .from("services")
+                                .update({ category_id: categoryId })
+                                .eq("id", s.id);
+
+                              if (error) {
+                                console.error(error);
+                                alert("Failed to change category");
+                                return;
+                              }
+                              setServices(prev => prev.map(x =>
+                                x.id === s.id ? { ...x, category_id: categoryId } : x
+                              ));
+                            }}
+                            className="text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-200"
+                          >
+                            <option value="">No category</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.icon} {cat.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
                     </div>
                   </div>
                   <button

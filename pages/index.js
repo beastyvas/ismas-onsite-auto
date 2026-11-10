@@ -58,7 +58,7 @@ async function fetchOpenTimes(date, duration) {
   return open;
 }
 
-// Copied word for word from Isma's Google reviews. "…" marks where Google cut the text off.
+// Copied word for word from Ismael's Google reviews. "…" marks where Google cut the text off.
 const googleReviews = [
   { name: "Anthony Wilson", text: "Honest and dependable!!! Great customer service and always gets the job done right! I highly recommend him!!!" },
   { name: "anielca mattos", text: "Ismael is very knowledgeable, great, and sufficient. I was extremely pleased with the service done on my car! Will highly recommend!" },
@@ -75,7 +75,7 @@ const copy = {
     call: "Call",
     realJob: "Real job · Las Vegas",
     heroTitle: "Auto repair wherever you're parked.",
-    heroText: "Isma comes to your home or work in Las Vegas, Henderson and North Las Vegas. No tow, no waiting room.",
+    heroText: "Ismael comes to your home or work in Las Vegas, Henderson and North Las Vegas. No tow, no waiting room.",
     seeTimes: "See open times",
     since: "Since 2021",
     spanish: "Se habla español",
@@ -87,7 +87,7 @@ const copy = {
     bookAt: (day, time) => `Book ${day}, ${time}`,
     noTimes: "No open times are posted right now. Call or text",
     loadingTimes: "Checking open times…",
-    fixesTitle: "What Isma fixes",
+    fixesTitle: "What Ismael fixes",
     fixesLead: "Prices are where the job starts. You'll know the total before any work begins.",
     from: "from",
     callForPrice: "Call for price",
@@ -100,7 +100,7 @@ const copy = {
     howTitle: "How it works",
     steps: [
       ["Book a time", "Tell us the car, the problem and where it'll be parked."],
-      ["Isma shows up", "With the tools and parts. You get a text when he's on the way."],
+      ["Ismael shows up", "With the tools and parts. You get a text when he's on the way."],
       ["Pay in two halves", "Half before he starts, half when it's done. Cash, Venmo, Zelle or Cash App."],
     ],
     meet: (name) => `Meet ${name}`,
@@ -110,7 +110,7 @@ const copy = {
     moreReviews: "Show more reviews",
     fiveStars: "5-star Google reviews",
     bookTitle: "Book your repair",
-    bookLead: "Takes about two minutes. Isma confirms by text.",
+    bookLead: "Takes about two minutes. Ismael confirms by text.",
     deposit: "A $50 deposit holds your time.",
     depositText: "It's charged today and comes off your final bill.",
     you: "About you",
@@ -127,26 +127,26 @@ const copy = {
     pickDayFirst: "Pick a highlighted day to see open times.",
     noTimesDay: "No open times that day for this job. Try another day or call",
     anythingElse: "Anything else?",
-    notesPlaceholder: "What's going on with the car? Noises, warning lights, anything Isma should know.",
+    notesPlaceholder: "What's going on with the car? Noises, warning lights, anything Ismael should know.",
     urgent: "It's urgent",
-    urgentSub: "Isma will try to fit you in sooner.",
+    urgentSub: "Ismael will try to fit you in sooner.",
     responder: "I'm a first responder or veteran",
-    responderSub: "Ask Isma about special pricing.",
+    responderSub: "Ask Ismael about special pricing.",
     submit: "Request this time",
     submitPay: "Pay $50 deposit and book",
     submitting: "Sending…",
     paying: "Opening payment…",
     needTime: "Pick a day and time first.",
     timeDropped: (x) => `${x} doesn't fit this job anymore. Pick another time.`,
-    success: "Request sent. Isma will text you to confirm.",
+    success: "Request sent. Ismael will text you to confirm.",
     failure: "That didn't go through. Try again, or call",
     faqTitle: "Questions people ask",
     faqLead: "Anything else? Call or text",
     faq: [
-      ["Do you really come to my house?", "Yes. Isma works in your driveway, parking lot or at your job, wherever the car is."],
+      ["Do you really come to my house?", "Yes. Ismael works in your driveway, parking lot or at your job, wherever the car is."],
       ["Is there a travel fee?", "Not in Las Vegas, Henderson or North Las Vegas. Outside Clark County, call for a travel quote."],
       ["How do I pay?", "Half before the job starts and half when it's done. Cash, Venmo, Zelle or Cash App."],
-      ["Do you speak Spanish?", "Yes. Isma works with customers in English and Spanish."],
+      ["Do you speak Spanish?", "Yes. Ismael works with customers in English and Spanish."],
     ],
     noFee: "No travel fee",
     outside: "Outside Clark County? Call for a travel quote:",
@@ -160,7 +160,7 @@ const copy = {
     call: "Llamar",
     realJob: "Trabajo real · Las Vegas",
     heroTitle: "Reparación de autos donde estés estacionado.",
-    heroText: "Isma va a tu casa o trabajo en Las Vegas, Henderson y North Las Vegas. Sin grúa, sin sala de espera.",
+    heroText: "Ismael va a tu casa o trabajo en Las Vegas, Henderson y North Las Vegas. Sin grúa, sin sala de espera.",
     seeTimes: "Ver horarios disponibles",
     since: "Desde 2021",
     spanish: "Se habla español",
@@ -172,7 +172,7 @@ const copy = {
     bookAt: (day, time) => `Reservar ${day}, ${time}`,
     noTimes: "No hay horarios publicados ahora. Llama o manda texto al",
     loadingTimes: "Buscando horarios…",
-    fixesTitle: "Lo que Isma arregla",
+    fixesTitle: "Lo que Ismael arregla",
     fixesLead: "Los precios son desde. Sabrás el total antes de empezar el trabajo.",
     from: "desde",
     callForPrice: "Llama para precio",
@@ -185,7 +185,7 @@ const copy = {
     howTitle: "Cómo funciona",
     steps: [
       ["Reserva un horario", "Dinos el carro, el problema y dónde estará."],
-      ["Isma llega a ti", "Con herramientas y piezas. Recibes un texto cuando va en camino."],
+      ["Ismael llega a ti", "Con herramientas y piezas. Recibes un texto cuando va en camino."],
       ["Paga en dos partes", "Mitad antes de empezar, mitad al terminar. Efectivo, Venmo, Zelle o Cash App."],
     ],
     meet: (name) => `Conoce a ${name}`,
@@ -195,7 +195,7 @@ const copy = {
     moreReviews: "Ver más reseñas",
     fiveStars: "Reseñas de 5 estrellas en Google",
     bookTitle: "Reserva tu reparación",
-    bookLead: "Toma unos dos minutos. Isma confirma por texto.",
+    bookLead: "Toma unos dos minutos. Ismael confirma por texto.",
     deposit: "Un depósito de $50 aparta tu horario.",
     depositText: "Se cobra hoy y se descuenta de tu cuenta final.",
     you: "Tus datos",
@@ -212,26 +212,26 @@ const copy = {
     pickDayFirst: "Elige un día marcado para ver horarios.",
     noTimesDay: "No hay horarios ese día para este trabajo. Prueba otro día o llama al",
     anythingElse: "¿Algo más?",
-    notesPlaceholder: "¿Qué le pasa al carro? Ruidos, luces de alerta, lo que Isma deba saber.",
+    notesPlaceholder: "¿Qué le pasa al carro? Ruidos, luces de alerta, lo que Ismael deba saber.",
     urgent: "Es urgente",
-    urgentSub: "Isma intentará atenderte antes.",
+    urgentSub: "Ismael intentará atenderte antes.",
     responder: "Soy primer respondiente o veterano",
-    responderSub: "Pregúntale a Isma por precio especial.",
+    responderSub: "Pregúntale a Ismael por precio especial.",
     submit: "Solicitar este horario",
     submitPay: "Pagar depósito de $50 y reservar",
     submitting: "Enviando…",
     paying: "Abriendo pago…",
     needTime: "Primero elige día y hora.",
     timeDropped: (x) => `${x} ya no alcanza para este trabajo. Elige otro horario.`,
-    success: "Solicitud enviada. Isma te mandará un texto para confirmar.",
+    success: "Solicitud enviada. Ismael te mandará un texto para confirmar.",
     failure: "No se pudo enviar. Intenta de nuevo o llama al",
     faqTitle: "Preguntas frecuentes",
     faqLead: "¿Algo más? Llama o manda texto al",
     faq: [
-      ["¿De verdad vienes a mi casa?", "Sí. Isma trabaja en tu entrada, estacionamiento o trabajo, donde esté el carro."],
+      ["¿De verdad vienes a mi casa?", "Sí. Ismael trabaja en tu entrada, estacionamiento o trabajo, donde esté el carro."],
       ["¿Cobran por el traslado?", "No en Las Vegas, Henderson ni North Las Vegas. Fuera del condado de Clark, llama para una cotización."],
       ["¿Cómo pago?", "Mitad antes de empezar y mitad al terminar. Efectivo, Venmo, Zelle o Cash App."],
-      ["¿Hablan español?", "Sí. Isma atiende en inglés y en español."],
+      ["¿Hablan español?", "Sí. Ismael atiende en inglés y en español."],
     ],
     noFee: "Sin cargo de traslado",
     outside: "¿Fuera del condado de Clark? Llama para una cotización:",
@@ -331,8 +331,8 @@ export default function Home() {
         if (testimonialsData) setTestimonials(testimonialsData);
 
         setMechanics(mechanicsData?.length > 0 ? mechanicsData : [{
-          name: "Isma",
-          bio_short: "Isma has been fixing cars across the Las Vegas valley since 2021.",
+          name: "Ismael",
+          bio_short: "Ismael has been fixing cars across the Las Vegas valley since 2021.",
           bio_long: "He brings the tools and parts to you, and he'll tell you what's wrong before he touches anything.",
           photo_url: null,
         }]);
@@ -594,7 +594,7 @@ export default function Home() {
       <section className={s.hero}>
         <div className={s.heroGrid}>
           <div className={s.heroPhoto}>
-            <img src="/images/hero-carport.jpg" alt="Isma replacing brakes on a car in an apartment carport" fetchPriority="high" />
+            <img src="/images/hero-carport.jpg" alt="Ismael replacing brakes on a car in an apartment carport" fetchPriority="high" />
             <span className={s.photoTag}>{t.realJob}</span>
           </div>
           <div className={`${s.heroCopy} ${s.wrap}`}>
